@@ -6,342 +6,252 @@
     <title>MIX-SIGHT Mobile</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #0a0e14;
-            --panel-bg: #161a22;
-            --panel-border: #2c3240;
-            --text-primary: #f0f2f5;
-            --text-secondary: #8a93a5;
+            --bg-color: #0f172a;
+            --panel-bg: rgba(30, 41, 59, 0.7);
+            --panel-border: rgba(51, 65, 85, 0.7);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
             --accent-color: #2dd4bf;
             --accent-hover: #5eead4;
             --red-color: #f43f5e;
             --amber-color: #f59e0b;
-            --blue-color: #38bdf8;
         }
-
+        html, body {
+            overscroll-behavior-y: contain;
+            -webkit-tap-highlight-color: transparent;
+        }
         body {
             font-family: 'Inter', sans-serif;
             background-color: var(--bg-color);
             color: var(--text-primary);
-            overscroll-behavior: none;
+            background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.04) 1px, transparent 0);
+            background-size: 2rem 2rem;
         }
-
-        /* Screen Transitions */
-        .screen {
+        .app-screen {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
-            height: calc(100% - 64px); /* Full height minus nav bar */
+            height: 100%;
             overflow-y: auto;
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s;
-            visibility: hidden;
-            opacity: 0;
-            transform: translateX(20px);
-        }
-        .screen.active {
-            visibility: visible;
+            transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
             opacity: 1;
             transform: translateX(0);
         }
-        .screen.instant {
-            transition: none;
+        .app-screen.hidden {
+            transform: translateX(100%);
+            opacity: 0;
+            pointer-events: none;
         }
-
-        /* Bottom Navigation */
+        .app-screen.hidden-left {
+            transform: translateX(-100%);
+            opacity: 0;
+            pointer-events: none;
+        }
+        .glass-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 0.75rem;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        .section-title {
+            font-size: 1.125rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+        }
         .bottom-nav {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 64px;
-            background-color: var(--panel-bg);
-            border-top: 1px solid var(--panel-border);
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            z-index: 1000;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
         }
-        .nav-item {
-            flex: 1;
-            text-align: center;
-            color: var(--text-secondary);
-            transition: color 0.2s ease;
-        }
-        .nav-item.active {
-            color: var(--accent-color);
-        }
-        .nav-item svg {
-            margin: 0 auto 4px;
-        }
-        .nav-item span {
-            font-size: 0.75rem;
-            font-weight: 500;
-        }
-        .nav-item.scan-button {
-            transform: translateY(-20px);
-        }
-        .scan-button-inner {
-            width: 64px;
-            height: 64px;
-            border-radius: 999px;
-            background: linear-gradient(45deg, var(--accent-color), var(--blue-color));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            box-shadow: 0 4px 20px rgba(45, 212, 191, 0.3);
-            border: 4px solid var(--bg-color);
-        }
-
-        /* Modal Styles */
         .modal-overlay {
             position: fixed;
             inset: 0;
-            background-color: rgba(0,0,0,0.6);
-            backdrop-filter: blur(8px);
-            z-index: 2000;
+            background-color: rgba(0,0,0,0.7);
+            backdrop-filter: blur(5px);
+            z-index: 40;
             opacity: 0;
-            visibility: hidden;
             transition: opacity 0.3s ease;
+            pointer-events: none;
         }
-        .modal-overlay.active {
+        .modal-overlay.show {
             opacity: 1;
-            visibility: visible;
+            pointer-events: auto;
         }
         .modal-content {
             position: fixed;
             bottom: 0;
             left: 0;
             right: 0;
-            background-color: var(--panel-bg);
-            border-top-left-radius: 1.5rem;
-            border-top-right-radius: 1.5rem;
-            max-height: 90vh;
-            overflow-y: auto;
             transform: translateY(100%);
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            z-index: 2001;
+            transition: transform 0.3s ease-out;
+            z-index: 50;
         }
-        .modal-overlay.active .modal-content {
+        .modal-content.show {
             transform: translateY(0);
         }
-        .modal-handle {
-            width: 40px;
-            height: 4px;
-            background-color: var(--panel-border);
-            border-radius: 2px;
-            margin: 8px auto;
-        }
-
-        /* Custom Card/List Styles */
-        .summary-card {
-            background-color: var(--panel-bg);
-            border: 1px solid var(--panel-border);
-            border-radius: 1rem;
-            padding: 1rem;
-        }
-        .list-item {
-            background-color: transparent;
-            border-bottom: 1px solid var(--panel-border);
-            padding: 1rem;
-            transition: background-color 0.2s ease;
-        }
-        .list-item:active {
-            background-color: rgba(45, 212, 191, 0.1);
-        }
-        .list-item:last-child {
-            border-bottom: none;
-        }
-
-        /* Scan Screen Specifics */
-        #scan-feedback-overlay {
-            position: fixed;
-            inset: 0;
-            z-index: 3000;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            transition: opacity 0.3s ease;
-            pointer-events: none;
-            opacity: 0;
-        }
-        #scan-feedback-overlay.show {
-            opacity: 1;
-        }
+        .fade-in { animation: fadeIn 0.5s ease forwards; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .slide-up { animation: slideUp 0.5s ease-out forwards; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
         
-        /* Animations & Vibrant Styles */
-        @keyframes pulse-glow {
-            0%, 100% { box-shadow: 0 0 8px 0px var(--amber-color); }
-            50% { box-shadow: 0 0 16px 4px rgba(245, 158, 11, 0); }
+        .scan-feedback-text.PRIORITY { color: #4ade80; } /* green-400 */
+        .scan-feedback-text.NON-TARGET { color: #f59e0b; } /* amber-500 */
+        .scan-feedback-text.NOT-IN-LIST { color: #f43f5e; } /* rose-500 */
+
+        .cutoff-ticker.critical { color: var(--red-color); animation: pulse-text 1.5s infinite; }
+        .cutoff-ticker.warning { color: var(--amber-color); }
+        .cutoff-ticker.safe { color: var(--text-primary); }
+        @keyframes pulse-text { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+        .alert-critical {
+            border-left: 4px solid var(--amber-color);
+            animation: pulse-border 2s infinite;
         }
-        .alert-indicator.glowing {
-            animation: pulse-glow 2s infinite;
+        @keyframes pulse-border {
+            0%, 100% { border-left-color: var(--amber-color); }
+            50% { border-left-color: #fcd34d; } /* amber-300 */
         }
-        
-        @keyframes pulse-red {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.8; transform: scale(1.02); }
-        }
-        .countdown-timer.critical {
-            color: var(--red-color);
-            animation: pulse-red 1.5s infinite;
-        }
-        .countdown-timer.warning { color: var(--amber-color); }
-        .countdown-timer.safe { color: var(--accent-color); }
     </style>
 </head>
 <body class="min-h-screen">
 
-    <!-- Screen: Upload (Initial State) -->
-    <div id="upload-screen" class="fixed inset-0 z-[5000] bg-gray-900 flex flex-col items-center justify-center p-4 transition-opacity duration-500">
-        <div class="text-center mb-8">
+    <!-- Screen: Upload -->
+    <div id="upload-screen" class="app-screen flex flex-col items-center justify-center p-6">
+        <div class="text-center mb-8 fade-in">
             <h1 class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-blue-400">MIX-SIGHT</h1>
-            <p class="text-slate-300 mt-2 text-lg">Mobile Operations Dashboard</p>
+            <p class="text-slate-300 mt-2 text-base">Mobile Analytics Dashboard</p>
         </div>
-        <div class="w-full max-w-sm mx-auto space-y-4">
-            <label for="csv-upload" id="upload-label" class="w-full cursor-pointer bg-slate-800/50 border-2 border-dashed border-slate-600 hover:border-teal-400 flex flex-col items-center justify-center p-8 rounded-2xl transition-colors duration-300">
-                <svg class="w-12 h-12 text-slate-500 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3 3m3-3l3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" /></svg>
-                <span class="font-semibold text-xl text-slate-200">Upload Mix-Bag Data</span>
+        
+        <div class="w-full max-w-md mx-auto slide-up space-y-6">
+            <label for="csv-upload" id="upload-label" class="w-full cursor-pointer glass-panel hover:border-teal-400 flex flex-col items-center justify-center p-8 transition-colors duration-300 rounded-xl">
+                <svg class="w-12 h-12 text-slate-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3 3m3-3l3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" /></svg>
+                <span class="font-semibold text-lg text-slate-200">Upload Mix-Bag Data</span>
                 <span id="file-name" class="text-sm text-slate-400 mt-1 text-center">Tap to select a CSV file</span>
             </label>
             <input type="file" id="csv-upload" class="hidden" accept=".csv, text/csv">
         </div>
         <div id="upload-message" class="mt-4 text-center h-6"></div>
-        <footer class="absolute bottom-4 text-center text-xs text-slate-500">
-            Designed & Crafted by Rh. | Team Sonic
+        <footer class="absolute bottom-4 text-center text-xs text-slate-500 tracking-wider">
+            Designed & Crafted by Rh. | Team Sonic - Hubli
         </footer>
     </div>
 
-    <!-- Main App Container -->
-    <div id="app-container" class="hidden">
-        <!-- Screen: Dashboard -->
-        <main id="dashboard-screen" class="screen p-4 space-y-4">
-            <header class="flex justify-between items-center">
+    <!-- Screen: Dashboard -->
+    <div id="dashboard-screen" class="app-screen hidden">
+        <main class="p-4 pb-24">
+            <header class="flex justify-between items-start mb-6">
                 <div>
-                    <h1 class="text-2xl font-bold">Dashboard</h1>
-                    <p id="dashboard-timestamp" class="text-xs text-slate-400">No data loaded</p>
+                    <h1 class="text-2xl font-black text-white">MIX-SIGHT Dashboard</h1>
+                    <div id="data-timestamp-container" class="mt-1 text-xs"></div>
+                    <div id="live-clock" class="text-xs text-slate-400"></div>
                 </div>
-                 <div id="live-clock" class="text-lg font-semibold text-slate-300 tabular-nums">00:00:00</div>
+                <div class="flex items-center gap-3">
+                     <button id="show-alerts-btn" class="relative p-2 rounded-full bg-slate-800/60 border border-slate-700">
+                        <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+                        <span id="alerts-badge" class="hidden absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center"></span>
+                    </button>
+                    <button id="show-main-menu-btn" class="p-2 rounded-full bg-slate-800/60 border border-slate-700">
+                        <svg class="w-6 h-6 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" /></svg>
+                    </button>
+                </div>
             </header>
-
-            <!-- Overall Summary -->
-            <div class="grid grid-cols-2 gap-4">
-                <div class="summary-card text-center">
-                    <p class="text-sm text-slate-400">Total Bags</p>
-                    <p id="total-bags" class="text-4xl font-bold text-teal-400">0</p>
-                </div>
-                <div class="summary-card text-center">
-                    <p class="text-sm text-slate-400">Total Shipments</p>
-                    <p id="total-shipments" class="text-4xl font-bold text-blue-400">0</p>
-                </div>
-            </div>
-
-            <!-- Search/Filter -->
-            <div class="relative">
-                <input type="text" id="search-filter-input" placeholder="Search bags or clusters..." class="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 pl-10 text-white focus:outline-none focus:ring-2 focus:ring-accent-color">
-                <svg class="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
-            </div>
             
+            <!-- Overall Summary -->
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div id="view-all-bags-btn" class="glass-panel p-4 rounded-xl text-center cursor-pointer">
+                    <div class="text-4xl font-black text-teal-400" id="total-bags">0</div>
+                    <div class="text-xs font-bold text-slate-300">Total Bags</div>
+                </div>
+                <div class="glass-panel p-4 rounded-xl text-center">
+                    <div class="text-4xl font-black text-blue-400" id="total-shipments">0</div>
+                    <div class="text-xs font-bold text-slate-300">Total Shipments</div>
+                </div>
+            </div>
+
             <!-- Ageing Summary -->
-            <div class="summary-card">
-                <h2 class="text-lg font-semibold mb-2">Ageing Summary</h2>
+            <div class="glass-panel p-4 rounded-xl mb-6">
+                <h2 class="section-title">Ageing Summary</h2>
                 <div id="ageing-summary" class="space-y-2"></div>
             </div>
-
-            <!-- Cluster Summary -->
-            <div class="summary-card">
-                <h2 class="text-lg font-semibold mb-2">Cluster Summary</h2>
-                <div id="cluster-summary-list"></div>
-            </div>
-            <div class="h-8"></div> <!-- Spacer for bottom nav -->
-        </main>
-
-        <!-- Screen: Scan -->
-        <main id="scan-screen" class="screen flex flex-col p-4">
-            <header class="flex justify-between items-center flex-shrink-0">
-                <h1 class="text-2xl font-bold">Scan & Sort</h1>
-                <button id="end-scan-session-btn" class="text-sm text-slate-400 hover:text-white">End Session</button>
-            </header>
-            <div class="flex-grow flex flex-col items-center justify-center text-center">
-                 <div id="scan-feedback" class="text-6xl font-black text-slate-600 transition-all duration-300">READY</div>
-                 <p id="scan-target-info" class="text-slate-400 h-6 mt-1"></p>
-            </div>
-            <div class="w-full max-w-md mx-auto flex-shrink-0">
-                <div id="scan-progress-container" class="mb-4">
-                    <div class="flex justify-between items-center mb-1">
-                        <span id="progress-text" class="text-sm font-medium text-slate-300">Scan Progress</span>
-                        <span id="progress-percentage" class="text-sm font-medium text-slate-300">0%</span>
-                    </div>
-                    <div class="w-full bg-slate-700 rounded-full h-2.5">
-                        <div id="progress-bar" class="bg-teal-500 h-2.5 rounded-full transition-all" style="width: 0%"></div>
-                    </div>
-                </div>
-                <input type="text" id="scan-input" autocomplete="off" class="bg-slate-800 border-2 border-slate-700 rounded-lg p-4 text-2xl text-center w-full focus:outline-none focus:ring-4 focus:ring-teal-500/50" placeholder="Scan or Type Bag ID...">
-            </div>
-             <div class="h-8"></div> <!-- Spacer for bottom nav -->
-        </main>
-
-        <!-- Screen: Alerts -->
-        <main id="alerts-screen" class="screen p-4 space-y-4">
-            <header>
-                <h1 class="text-2xl font-bold">Alerts & Insights</h1>
-            </header>
             
-            <!-- Cutoff Horizon -->
-            <div>
-                <h2 class="text-lg font-semibold mb-2 text-slate-300">Upcoming Cutoff Horizon</h2>
-                <div id="cutoff-horizon-container" class="flex gap-3 overflow-x-auto pb-3 -mx-4 px-4">
-                    <!-- Horizon cards injected here -->
+            <!-- Cluster Summary -->
+            <div class="glass-panel p-4 rounded-xl">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="section-title mb-0">Cluster Summary</h2>
+                    <button id="magic-filter-btn" class="text-sm bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-500 flex items-center gap-2 shadow-lg shadow-blue-500/20">
+                        <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2.628 1.601C5.028 1.206 7.49 1 10 1s4.973.206 7.372.601a.75.75 0 01.628.74v2.288a2.25 2.25 0 01-.659 1.59l-4.682 4.683a2.25 2.25 0 00-.659 1.59v3.037c0 .684-.31 1.33-.844 1.757l-1.937 1.55A.75.75 0 018 18.25v-5.757a2.25 2.25 0 00-.659-1.59L2.659 6.22A2.25 2.25 0 012 4.629V2.34a.75.75 0 01.628-.74z" clip-rule="evenodd" /></svg>
+                        Filter
+                    </button>
+                </div>
+                <div id="cluster-summary-list" class="space-y-3">
+                    <p class="text-slate-400 text-center py-8">No cluster data.</p>
                 </div>
             </div>
-
-            <!-- Alerts List -->
-            <div id="alerts-list-container" class="space-y-3">
-                 <!-- Alerts injected here -->
-            </div>
-            <div class="h-8"></div> <!-- Spacer for bottom nav -->
         </main>
-
-        <!-- Bottom Navigation Bar -->
-        <nav class="bottom-nav">
-            <button class="nav-item" data-screen="dashboard-screen">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
-                <span>Dashboard</span>
+        
+        <!-- Bottom Navigation -->
+        <footer class="bottom-nav fixed bottom-0 left-0 right-0 h-20 bg-slate-900/80 backdrop-blur-md border-t border-slate-700 flex items-center justify-center p-2">
+            <button id="start-scan-session-btn" class="bg-teal-400 text-slate-900 font-bold text-lg py-4 px-8 rounded-full shadow-lg shadow-teal-500/20 flex items-center gap-3 transform hover:scale-105 transition-transform">
+                <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" /></svg>
+                Start Scan Session
             </button>
-            <button class="nav-item scan-button" data-screen="scan-screen">
-                <div class="scan-button-inner">
-                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804M15 4.804A7.968 7.968 0 0118.5 4c1.255 0 2.443.29 3.5.804m-.708 15.592A7.969 7.969 0 0118.5 20c-1.255 0-2.443-.29-3.5-.804m-6.384 0A7.969 7.969 0 015.5 20c-1.255 0-2.443-.29-3.5-.804m13.084-11.192L15 12l-3-3m-6.084 3L9 12l3 3"></path></svg>
-                </div>
-            </button>
-            <button class="nav-item" data-screen="alerts-screen">
-                <div class="relative">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
-                    <span id="alert-indicator" class="absolute top-0 right-0 block h-2 w-2 rounded-full bg-amber-400 hidden"></span>
-                </div>
-                <span>Alerts</span>
-            </button>
-        </nav>
+        </footer>
     </div>
 
-    <!-- Modal Container -->
+    <!-- Screen: Scan -->
+    <div id="scan-screen" class="app-screen hidden flex-col">
+        <header class="p-4 flex justify-between items-center flex-shrink-0">
+            <h1 class="text-2xl font-bold text-teal-400">Scan & Sort</h1>
+            <button id="end-scan-session-btn" class="text-sm text-slate-300 hover:text-white transition">End Session</button>
+        </header>
+        
+        <div class="flex-grow flex flex-col items-center justify-center p-4">
+            <div id="scan-feedback" class="text-6xl font-black text-slate-700 animate-pulse transition-all duration-300">READY</div>
+            <input type="text" id="scan-input" autocomplete="off" class="bg-slate-800 border-2 border-slate-700 rounded-lg p-4 text-2xl text-center w-full max-w-sm mt-6 focus:outline-none focus:ring-4 focus:ring-teal-500/50" placeholder="Scan Bag ID...">
+            <div id="scan-progress-container" class="w-full max-w-sm mx-auto mt-6">
+                <div class="flex justify-between items-center mb-1">
+                    <span id="progress-text" class="text-xs font-medium text-slate-300">Scan Progress</span>
+                    <span id="progress-percentage" class="text-xs font-medium text-slate-300">0%</span>
+                </div>
+                <div class="w-full bg-slate-700 rounded-full h-2">
+                    <div id="progress-bar" class="bg-teal-500 h-2 rounded-full transition-all" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+        
+        <footer class="bottom-nav fixed bottom-0 left-0 right-0 h-20 bg-slate-900/80 backdrop-blur-md border-t border-slate-700 flex items-center justify-around p-2">
+             <button id="scan-view-btn" class="flex flex-col items-center justify-center text-teal-400 w-1/2">
+                <svg class="w-7 h-7" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" /></svg>
+                <span class="text-xs mt-1">Scan</span>
+            </button>
+            <button id="pending-list-view-btn" class="flex flex-col items-center justify-center text-slate-400 w-1/2">
+                <svg class="w-7 h-7" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h7.5M8.25 12h7.5m-7.5 5.25h7.5M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" /></svg>
+                <span class="text-xs mt-1">Pending List</span>
+            </button>
+        </footer>
+    </div>
+    
+    <!-- Overlays & Modals -->
     <div id="modal-container"></div>
     
-    <!-- Scan Feedback Overlay -->
-    <div id="scan-feedback-overlay">
-        <div id="scan-result-status" class="text-8xl font-black"></div>
-        <div id="scan-result-bag-id" class="text-4xl font-semibold mt-2"></div>
+    <div id="result-overlay" class="hidden fixed inset-0 z-50 flex flex-col items-center justify-center text-white text-center p-4 transition-all duration-300">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm"></div>
+        <div class="relative z-10 fade-in">
+            <div id="result-status" class="text-6xl font-black"></div>
+            <div id="result-bag-id" class="text-3xl font-semibold mt-2"></div>
+            <div id="result-bag-details" class="text-base mt-4 font-light max-w-sm mx-auto"></div>
+        </div>
     </div>
-    
-    <!-- Completion Overlay -->
-    <div id="completion-overlay" class="hidden fixed inset-0 z-[4000] flex flex-col items-center justify-center text-center p-4 bg-gradient-to-br from-teal-500 to-green-600">
-        <div>
-            <h2 class="text-6xl font-black text-white">ALL TARGETS FOUND!</h2>
-            <p class="text-xl text-green-100 mt-4">Great work sorting the priority bags.</p>
-            <button id="finish-session-btn" class="mt-12 bg-white text-green-600 font-bold py-3 px-6 rounded-lg text-lg">
+    <div id="completion-overlay" class="hidden fixed inset-0 z-50 flex flex-col items-center justify-center text-center p-4 bg-gradient-to-br from-teal-500 to-green-600">
+        <div class="fade-in">
+            <h2 class="text-5xl font-black text-white">ALL TARGETS FOUND!</h2>
+            <p class="text-xl text-green-100 mt-4">Great work! All priority bags sorted.</p>
+            <button id="finish-session-btn" class="mt-12 bg-white text-green-600 font-bold py-3 px-6 rounded-lg text-lg transition-all hover:scale-105">
                 Return to Dashboard
             </button>
         </div>
@@ -349,378 +259,138 @@
 
     <script>
     document.addEventListener('DOMContentLoaded', () => {
-        // --- STATE & CONSTANTS ---
+
         const state = {
             fullAnalysisData: null,
             scanTargetData: { clusters: new Set(), bags: {}, totalBags: 0, foundBags: 0 },
             isScanning: false,
+            fileName: '',
             fileLastModified: null,
-            activeScreen: 'dashboard-screen',
-            countdownInterval: null,
-            clockInterval: null,
-            // Set a fixed "now" for consistent demonstration based on user prompt
-            now: new Date('2025-08-04T17:58:00+05:30')
+            currentDetailView: { type: null, data: [], sortKey: 'age_hours', sortDir: 'desc' },
+            currentScreen: 'upload',
+            intervals: {
+                clock: null,
+                cutoffTicker: null,
+                alerts: null,
+            }
         };
         const BAG_URL_PREFIX = "https://hq.delhivery.com/bag/";
         const WBN_URL_PREFIX = "https://hq.delhivery.com/p/pntrzz/";
 
-        // --- DOM ELEMENTS ---
-        const uploadScreen = document.getElementById('upload-screen');
-        const appContainer = document.getElementById('app-container');
-        const screens = {
-            'dashboard-screen': document.getElementById('dashboard-screen'),
-            'scan-screen': document.getElementById('scan-screen'),
-            'alerts-screen': document.getElementById('alerts-screen')
-        };
-        const navItems = document.querySelectorAll('.nav-item');
-        const modalContainer = document.getElementById('modal-container');
-        
-        const csvUploadInput = document.getElementById('csv-upload');
-        const fileNameEl = document.getElementById('file-name');
-        const uploadMessageEl = document.getElementById('upload-message');
-
-        const dashboardTimestampEl = document.getElementById('dashboard-timestamp');
-        const liveClockEl = document.getElementById('live-clock');
-        const totalBagsEl = document.getElementById('total-bags');
-        const totalShipmentsEl = document.getElementById('total-shipments');
-        const ageingSummaryEl = document.getElementById('ageing-summary');
-        const clusterSummaryListEl = document.getElementById('cluster-summary-list');
-        const searchFilterInput = document.getElementById('search-filter-input');
-
-        const scanInput = document.getElementById('scan-input');
-        const scanFeedbackEl = document.getElementById('scan-feedback');
-        const endScanSessionBtn = document.getElementById('end-scan-session-btn');
-        const completionOverlay = document.getElementById('completion-overlay');
-        const finishSessionBtn = document.getElementById('finish-session-btn');
-        const scanFeedbackOverlay = document.getElementById('scan-feedback-overlay');
-        const scanResultStatusEl = document.getElementById('scan-result-status');
-        const scanResultBagIdEl = document.getElementById('scan-result-bag-id');
-
-        const alertIndicator = document.getElementById('alert-indicator');
-        const cutoffHorizonContainer = document.getElementById('cutoff-horizon-container');
-        const alertsListContainer = document.getElementById('alerts-list-container');
-        
+        // --- Sound Synthesis ---
         let synths = {};
-
-        // --- CORE APP LOGIC ---
-
         function setupSynths() {
             if (Object.keys(synths).length > 0) return;
             synths.success = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.2, release: 0.5 } }).toDestination();
             synths.error = new Tone.Synth({ oscillator: { type: 'sawtooth' }, envelope: { attack: 0.01, decay: 0.3, sustain: 0.1, release: 0.5 } }).toDestination();
             synths.nonTarget = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.02, decay: 0.3, sustain: 0.2, release: 0.5 } }).toDestination();
             synths.completion = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "triangle" } }).toDestination();
+            synths.uiClick = new Tone.MembraneSynth({ pitchDecay: 0.01, octaves: 2, envelope: { attack: 0.001, decay: 0.1, sustain: 0 } }).toDestination();
+        }
+        document.body.addEventListener('click', async () => { if (Tone.context.state !== 'running') await Tone.start(); setupSynths(); }, { once: true });
+
+
+        // --- Screen Navigation ---
+        const screens = {
+            upload: document.getElementById('upload-screen'),
+            dashboard: document.getElementById('dashboard-screen'),
+            scan: document.getElementById('scan-screen'),
+        };
+
+        function showScreen(screenName) {
+            const oldScreen = state.currentScreen;
+            if (oldScreen === screenName) return;
+            Object.values(screens).forEach(s => s.classList.add('hidden', 'hidden-left'));
+            const newScreenEl = screens[screenName];
+            newScreenEl.classList.remove('hidden');
+            setTimeout(() => newScreenEl.classList.remove('hidden-left'), 10);
+            state.currentScreen = screenName;
         }
 
-        function showScreen(screenId, isInstant = false) {
-            state.activeScreen = screenId;
-            Object.values(screens).forEach(s => {
-                s.classList.remove('active', 'instant');
-                if (isInstant) s.classList.add('instant');
-            });
-            screens[screenId].classList.add('active');
-            
-            navItems.forEach(item => {
-                const isScanButton = item.classList.contains('scan-button');
-                if (isScanButton) {
-                    item.querySelector('.scan-button-inner').classList.toggle('bg-slate-700', screenId !== 'scan-screen');
-                } else {
-                    item.classList.toggle('active', item.dataset.screen === screenId);
-                }
-            });
-        }
+        // --- File Handling & Analysis ---
+        const csvUploadInput = document.getElementById('csv-upload');
+        const uploadLabel = document.getElementById('upload-label');
+        const fileNameEl = document.getElementById('file-name');
+        const uploadMessageEl = document.getElementById('upload-message');
 
         function handleFile(file) {
-            if (!file || !file.type.match('text/csv')) {
-                if(file) uploadMessageEl.textContent = "Please upload a valid CSV file.";
-                return;
-            }
+            if (!file || !file.type.match('text/csv')) { if(file) alert("Please upload a valid CSV file."); return; }
             fileNameEl.textContent = file.name;
+            state.fileName = file.name;
             state.fileLastModified = file.lastModified;
-            uploadMessageEl.textContent = 'Analyzing...';
-            
+            uploadMessageEl.textContent = 'Reading & Analyzing...';
+            uploadMessageEl.classList.remove('text-red-400');
             const reader = new FileReader();
             reader.onload = (event) => {
                 setTimeout(() => {
                     state.fullAnalysisData = performAnalysisInBrowser(event.target.result);
                     if (state.fullAnalysisData) {
-                        uploadScreen.style.opacity = '0';
-                        setTimeout(() => {
-                            uploadScreen.classList.add('hidden');
-                            appContainer.classList.remove('hidden');
-                            renderAll();
-                            showScreen('dashboard-screen', true);
-                            startTimers();
-                        }, 500);
+                        renderDashboard();
+                        showScreen('dashboard');
                     }
                 }, 50);
             };
             reader.readAsText(file);
         }
 
-        function renderAll() {
-            if (!state.fullAnalysisData) return;
-            renderDashboard();
-            renderAlertsScreen();
-        }
-
-        // --- RENDER FUNCTIONS ---
-
-        function animateCountUp(el, endValue) {
-            let startValue = 0;
-            const duration = 1500;
-            const startTime = performance.now();
-
-            function update(currentTime) {
-                const elapsedTime = currentTime - startTime;
-                if (elapsedTime >= duration) {
-                    el.textContent = endValue;
-                    return;
-                }
-                const progress = elapsedTime / duration;
-                const currentValue = Math.floor(startValue + (endValue - startValue) * progress);
-                el.textContent = currentValue;
-                requestAnimationFrame(update);
-            }
-            requestAnimationFrame(update);
-        }
-
-        function renderDashboard(filter = '') {
-            const data = state.fullAnalysisData;
-            if (!data) return;
-
-            const date = new Date(state.fileLastModified);
-            dashboardTimestampEl.textContent = `Data from: ${date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric' })}`;
-            
-            animateCountUp(totalBagsEl, data.total_pending_bags);
-            animateCountUp(totalShipmentsEl, data.total_pending_shipments);
-
-            ageingSummaryEl.innerHTML = Object.entries(data.ageing_groups).map(([category, values]) => `
-                <div class="list-item flex justify-between items-center" data-type="ageing" data-id="${category}">
-                    <span class="text-slate-300">${category}</span>
-                    <div class="font-semibold text-right">
-                        <span class="text-teal-400">${values.bag_count}</span> Bags / 
-                        <span class="text-blue-400">${values.wbn_count}</span> WBNs
-                    </div>
-                </div>
-            `).join('');
-
-            const filterLower = filter.toLowerCase();
-            const filteredClusters = Object.entries(data.cluster_details)
-                .filter(([id]) => id.toLowerCase().includes(filterLower))
-                .sort(([,a], [,b]) => b.wbn_count - a.wbn_count);
-
-            clusterSummaryListEl.innerHTML = filteredClusters.map(([id, details]) => `
-                <div class="list-item" data-type="cluster" data-id="${id}">
-                    <div class="flex justify-between items-center">
-                        <span class="font-semibold text-slate-200 truncate pr-2">${id}</span>
-                        <span class="text-sm text-slate-400">${details.bag_count} bags / ${details.wbn_count} WBNs</span>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function renderAlertsScreen() {
-            const { alerts, horizon } = generateAlerts();
-            
-            cutoffHorizonContainer.innerHTML = horizon.length > 0 ? horizon.map(c => `
-                <div class="summary-card flex-shrink-0 w-40 text-center">
-                    <div class="font-bold text-teal-300 truncate">${c.clusterId}</div>
-                    <div class="text-2xl font-bold text-white tabular-nums countdown-timer" data-cutoff-time="${c.date.toISOString()}">--:--:--</div>
-                    <div class="text-xs text-slate-300">${c.pendingShipments} pending</div>
-                </div>
-            `).join('') : `<p class="text-sm text-slate-400">No upcoming cutoffs found.</p>`;
-            
-            let hasCritical = false;
-            let alertsHTML = '';
-
-            if (alerts.outliers && alerts.outliers.length > 0) {
-                hasCritical = true;
-                alertsHTML += `<div class="summary-card border-l-4 border-amber-500" data-type="insight" data-id="outliers">...</div>`;
-            }
-
-            for (const clusterId in alerts) {
-                if (clusterId === 'outliers') continue;
-                if (alerts[clusterId].imminent && alerts[clusterId].imminent.length > 0) {
-                    hasCritical = true;
-                    const imminent = alerts[clusterId].imminent;
-                    alertsHTML += `
-                        <div class="summary-card border-l-4 border-amber-500" data-type="insight" data-id="${clusterId}">
-                            <h3 class="font-bold text-amber-400">CRITICAL: ${clusterId}</h3>
-                            <p class="text-sm">${imminent.length} shipments will fail in <span class="font-bold tabular-nums countdown-timer" data-cutoff-time="${imminent[0].cutoff.toISOString()}">--:--:--</span></p>
-                        </div>`;
-                }
-                if (alerts[clusterId].past && alerts[clusterId].past.length > 0) {
-                     alertsHTML += `<div class="summary-card border-l-4 border-red-500">...</div>`;
-                }
-            }
-            
-            alertsListContainer.innerHTML = alertsHTML || `<p class="text-center text-slate-400 mt-8">No active alerts. All clear!</p>`;
-            alertIndicator.classList.toggle('hidden', !hasCritical);
-            alertIndicator.classList.toggle('glowing', hasCritical);
-        }
-        
-        // --- All other functions (showModal, showDetailView, scan logic, etc.) remain the same ---
-        // ... (Omitting unchanged functions for brevity)
-        function renderScanScreen() {
-            showModal('Start Scan Session', `...`, (modalEl) => { /* ... */ });
-        }
-        function updateScanProgress() { /* ... */ }
-        function showModal(title, content, onConfirm) { /* ... */ }
-        function showDetailView(type, id) { /* ... */ }
-        function processScan(bagId) { /* ... */ }
-        function markBagAsFound(bagId) { /* ... */ }
-        function showScanFeedback(status, bagId, bgClass) { /* ... */ }
-        function showCompletion() { /* ... */ }
-        function endSession() { /* ... */ }
-
-        // --- EVENT LISTENERS ---
         csvUploadInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
-        document.body.addEventListener('click', async () => { if (Tone.context.state !== 'running') await Tone.start(); setupSynths(); }, { once: true });
-        navItems.forEach(item => {
-            item.addEventListener('click', () => {
-                if (item.dataset.screen === 'scan-screen' && !state.isScanning) {
-                    renderScanScreen();
-                } else {
-                    showScreen(item.dataset.screen);
-                }
-            });
-        });
-        searchFilterInput.addEventListener('input', (e) => renderDashboard(e.target.value));
-        document.getElementById('dashboard-screen').addEventListener('click', (e) => {
-            const target = e.target.closest('[data-type]');
-            if (target) showDetailView(target.dataset.type, target.dataset.id);
-        });
-        document.getElementById('alerts-screen').addEventListener('click', (e) => {
-            const target = e.target.closest('[data-type]');
-            if (target) showDetailView(target.dataset.type, target.dataset.id);
-        });
-        scanInput.addEventListener('change', () => {
-            const bagId = scanInput.value.trim().toUpperCase();
-            if (bagId) processScan(bagId);
-        });
-        endScanSessionBtn.addEventListener('click', endSession);
-        finishSessionBtn.addEventListener('click', endSession);
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eName => uploadLabel.addEventListener(eName, (e) => { e.preventDefault(); e.stopPropagation(); }));
+        ['dragenter', 'dragover'].forEach(eName => uploadLabel.addEventListener(eName, () => uploadLabel.classList.add('border-teal-400')));
+        ['dragleave', 'drop'].forEach(eName => uploadLabel.addEventListener(eName, () => uploadLabel.classList.remove('border-teal-400')));
 
-        // --- TIMERS & ALERTS ---
-        const clusterCutoffs = { "HBX-9-Davangere": ["16:30", "20:30"], "HBX-5-Shimoga": ["18:00"], "HBX-2-Bangalore_Hoskote_GW": ["14:30"], "HBX-4-Bhiwandi": ["06:00", "11:30", "18:30", "03:00"], "HBX-8-Goa": ["16:30"], "HBX-6-Pune_Sudhwadi": ["23:30"] };
-
-        function updateCountdowns() {
-            state.now.setSeconds(state.now.getSeconds() + 1); // Simulate time passing
-            const now = state.now;
-            document.querySelectorAll('.countdown-timer').forEach(timer => {
-                const cutoffTime = new Date(timer.dataset.cutoffTime);
-                const diff = cutoffTime - now;
-
-                if (diff < 0) {
-                    timer.textContent = "CUTOFF PASSED";
-                    timer.className = 'countdown-timer text-slate-500 text-xs';
-                    return;
-                }
-
-                const hours = Math.floor(diff / 3600000);
-                const minutes = Math.floor((diff % 3600000) / 60000);
-                const seconds = Math.floor((diff % 60000) / 1000);
-                
-                timer.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-
-                let newClass = 'countdown-timer font-bold tabular-nums ';
-                if (diff < 2 * 3600000) { // Less than 2 hours
-                    newClass += 'critical';
-                } else if (diff < 4 * 3600000) { // Less than 4 hours
-                    newClass += 'warning';
-                } else {
-                    newClass += 'safe';
-                }
-                timer.className = newClass;
-            });
-        }
-        
-        function startTimers() {
-            if (state.clockInterval) clearInterval(state.clockInterval);
-            if (state.countdownInterval) clearInterval(state.countdownInterval);
-
-            state.clockInterval = setInterval(() => {
-                liveClockEl.textContent = state.now.toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata', hour12: false });
-            }, 1000);
-
-            state.countdownInterval = setInterval(updateCountdowns, 1000);
-            
-            // Re-render alerts every 30s to catch new ones
-            setInterval(() => {
-                if(state.fullAnalysisData) renderAlertsScreen();
-            }, 30000);
-        }
-
-        function generateAlerts() {
-            if (!state.fullAnalysisData) return { alerts: {}, horizon: [] };
-            const now = state.now;
-            const alerts = {};
-            const atRiskShipments = state.fullAnalysisData.shipments.filter(s => s.age_hours >= 2.5);
-            for (const shipment of atRiskShipments) {
-                const cutoffs = clusterCutoffs[shipment.cluster_id] || [];
-                if (cutoffs.length === 0) continue;
-                let nextCutoff = null;
-                for (const timeStr of cutoffs.sort()) {
-                    const [hours, minutes] = timeStr.split(':').map(Number);
-                    const cutoffToday = new Date(now);
-                    cutoffToday.setHours(hours, minutes, 0, 0);
-                    if (cutoffToday < now) cutoffToday.setDate(cutoffToday.getDate() + 1); // Move to next day if passed
-                    if (!nextCutoff || cutoffToday < nextCutoff) nextCutoff = cutoffToday;
-                }
-                if (!alerts[shipment.cluster_id]) alerts[shipment.cluster_id] = { imminent: [], past: [] };
-                if (nextCutoff && (nextCutoff - now) < 4 * 3600000) { // Alert if within 4 hours
-                    alerts[shipment.cluster_id].imminent.push({shipment, cutoff: nextCutoff});
-                }
-            }
-            
-            const upcomingCutoffs = [];
-            const processedClusters = new Set();
-            Object.entries(clusterCutoffs).flatMap(([clusterId, times]) => times.map(time => ({ clusterId, time }))).map(item => {
-                const [hours, minutes] = item.time.split(':').map(Number);
-                const cutoffDate = new Date(now);
-                cutoffDate.setHours(hours, minutes, 0, 0);
-                if (cutoffDate < now) cutoffDate.setDate(cutoffDate.getDate() + 1);
-                return { ...item, date: cutoffDate };
-            }).sort((a, b) => a.date - b.date).forEach(cutoff => {
-                if (upcomingCutoffs.length >= 5) return;
-                if (!processedClusters.has(cutoff.clusterId)) {
-                    const pendingShipments = state.fullAnalysisData.shipments.filter(s => s.cluster_id === cutoff.clusterId).length;
-                    upcomingCutoffs.push({ ...cutoff, pendingShipments });
-                    processedClusters.add(cutoff.clusterId);
-                }
-            });
-
-            return { alerts, horizon: upcomingCutoffs };
-        }
-        
         function performAnalysisInBrowser(csvContent) {
             try {
                 const lines = csvContent.trim().split('\n');
+                if (lines.length < 2) throw new Error("CSV file is empty or has only a header.");
                 const headers = lines[0].trim().split(',').map(h => h.trim().replace(/"/g, '').replace(/ /g, '_').toLowerCase());
-                const currentTime = state.now;
+                const currentTime = new Date();
                 const shipments = lines.slice(1).map(line => {
                     const values = line.trim().split(',');
                     let row = {};
                     headers.forEach((header, index) => { row[header] = values[index] ? values[index].trim().replace(/"/g, '') : undefined; });
                     const incomingTime = new Date(row.bag_incoming_time);
                     if (isNaN(incomingTime) || !row.wbn) return null;
-                    return { ...row, bag_incoming_time_dt: incomingTime, age_hours: (currentTime - incomingTime) / 3600000, cluster_id: row.cluster_id || 'UNKNOWN' };
+                    return { 
+                        ...row, 
+                        is_bfsi: ['true', '1'].includes(String(row.is_bfsi).toLowerCase()),
+                        bag_incoming_time_dt: incomingTime, 
+                        age_hours: (currentTime - incomingTime) / (1000 * 60 * 60), 
+                        cluster_id: row.cluster_id || 'UNKNOWN' 
+                    };
                 }).filter(Boolean);
+                if (shipments.length === 0) throw new Error("No valid records found for analysis.");
                 const bagAggregates = new Map();
                 shipments.forEach(shipment => {
                     if (!bagAggregates.has(shipment.bag_id)) {
-                        bagAggregates.set(shipment.bag_id, { bag_id: shipment.bag_id, first_bag_incoming_time_dt: shipment.bag_incoming_time_dt, bag_age_hours: shipment.age_hours, wbns: new Set(), clusters: new Map() });
+                        bagAggregates.set(shipment.bag_id, {
+                            bag_id: shipment.bag_id,
+                            first_bag_incoming_time_dt: shipment.bag_incoming_time_dt,
+                            bag_age_hours: shipment.age_hours,
+                            wbns: new Set(),
+                            clusters: new Map(),
+                            has_bfsi: false,
+                            has_rt: false
+                        });
                     }
                     const bag = bagAggregates.get(shipment.bag_id);
                     bag.wbns.add(shipment.wbn);
                     bag.clusters.set(shipment.cluster_id, (bag.clusters.get(shipment.cluster_id) || 0) + 1);
+                    if (shipment.is_bfsi) bag.has_bfsi = true;
+                    if (String(shipment.status).toUpperCase() === 'RT') bag.has_rt = true;
                     if (shipment.bag_incoming_time_dt < bag.first_bag_incoming_time_dt) {
                         bag.first_bag_incoming_time_dt = shipment.bag_incoming_time_dt;
                         bag.bag_age_hours = shipment.age_hours;
                     }
                 });
-                const bags = Array.from(bagAggregates.values()).map(bag => ({ bag_id: bag.bag_id, age_hours: bag.bag_age_hours, age_str: `${Math.floor(bag.bag_age_hours)}h ${Math.floor((bag.bag_age_hours * 60) % 60)}m`, wbn_count: bag.wbns.size, clusters: Object.fromEntries(bag.clusters.entries()) }));
+                const bags = Array.from(bagAggregates.values()).map(bag => ({
+                    bag_id: bag.bag_id,
+                    age_hours: bag.bag_age_hours,
+                    age_str: `${Math.floor(bag.bag_age_hours)}h ${Math.floor((bag.bag_age_hours * 60) % 60)}m`,
+                    wbn_count: bag.wbns.size,
+                    clusters: Object.fromEntries(bag.clusters.entries()),
+                    has_bfsi: bag.has_bfsi,
+                    has_rt: bag.has_rt
+                }));
                 const cluster_details = {};
                 bags.forEach(bag => {
                     Object.keys(bag.clusters).forEach(clusterId => {
@@ -730,22 +400,569 @@
                         cluster_details[clusterId].bags.push(bag);
                     });
                 });
-                const ageing_groups = { "0 to 1 hr": { bag_count: 0, wbn_count: 0, bags: [] }, "1 to 2 hrs": { bag_count: 0, wbn_count: 0, bags: [] }, "2 to 4 hrs": { bag_count: 0, wbn_count: 0, bags: [] }, "4+ hrs": { bag_count: 0, wbn_count: 0, bags: [] } };
+                const ageing_groups = {
+                    "0 to 1 hr": { bag_count: 0, wbn_count: 0, bags: [] }, "1 to 2 hrs": { bag_count: 0, wbn_count: 0, bags: [] },
+                    "2 to 4 hrs": { bag_count: 0, wbn_count: 0, bags: [] }, "4+ hrs": { bag_count: 0, wbn_count: 0, bags: [] }
+                };
                 bags.forEach(bag => {
                     let groupName;
                     if (bag.age_hours <= 1) groupName = "0 to 1 hr";
                     else if (bag.age_hours <= 2) groupName = "1 to 2 hrs";
                     else if (bag.age_hours <= 4) groupName = "2 to 4 hrs";
                     else groupName = "4+ hrs";
-                    ageing_groups[groupName].bag_count++;
-                    ageing_groups[groupName].wbn_count += bag.wbn_count;
+                    const group = ageing_groups[groupName];
+                    group.bag_count++;
+                    group.wbn_count += bag.wbn_count;
+                    group.bags.push(bag);
                 });
-                return { total_pending_bags: bags.length, total_pending_shipments: shipments.length, ageing_groups, cluster_details, bags, shipments };
+                return {
+                    total_pending_bags: bags.length,
+                    total_pending_shipments: shipments.length,
+                    ageing_groups, cluster_details, bags, shipments
+                };
             } catch (error) {
+                console.error("Analysis Error:", error);
                 uploadMessageEl.textContent = `Error: ${error.message}`;
+                uploadMessageEl.classList.add('text-red-400');
                 return null;
             }
         }
+
+        // --- Dashboard Rendering ---
+        const totalBagsEl = document.getElementById('total-bags');
+        const totalShipmentsEl = document.getElementById('total-shipments');
+        const liveClockEl = document.getElementById('live-clock');
+        const dataTimestampContainer = document.getElementById('data-timestamp-container');
+        const ageingSummaryEl = document.getElementById('ageing-summary');
+        const clusterSummaryListEl = document.getElementById('cluster-summary-list');
+
+        function renderDashboard() {
+            const data = state.fullAnalysisData;
+            if (!data) return;
+
+            totalBagsEl.textContent = data.total_pending_bags;
+            totalShipmentsEl.textContent = data.total_pending_shipments;
+            
+            ageingSummaryEl.innerHTML = Object.entries(data.ageing_groups).map(([category, values]) => `
+                <div class="flex justify-between items-center text-sm p-2 rounded-lg hover:bg-slate-700/50 cursor-pointer" data-age-category="${category}">
+                    <span class="text-slate-300 font-semibold">${category}</span>
+                    <div class="font-bold">
+                        <span class="text-teal-400">${values.bag_count}</span> Bags / 
+                        <span class="text-blue-400">${values.wbn_count}</span> WBNs
+                    </div>
+                </div>
+            `).join('');
+            
+            ageingSummaryEl.querySelectorAll('[data-age-category]').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    const category = e.currentTarget.dataset.ageCategory;
+                    const groupData = state.fullAnalysisData.ageing_groups[category];
+                    if (groupData) showDetailModal({ bags: groupData.bags, context: { type: 'ageing', id: category }, title: `Ageing: ${category}` });
+                });
+            });
+
+            const sortedClusters = Object.entries(data.cluster_details).sort(([,a], [,b]) => b.wbn_count - a.wbn_count);
+            clusterSummaryListEl.innerHTML = sortedClusters.map(([id, details]) => {
+                 const nextCutoff = getNextCutoff(id);
+                 const cutoffHtml = nextCutoff 
+                    ? `<span class="font-semibold text-sm cutoff-ticker" data-cutoff-time="${nextCutoff.toISOString()}">--:--:--</span>`
+                    : `<span class="text-slate-500 text-xs">No cutoff</span>`;
+
+                return `
+                <div class="bg-slate-800/50 p-3 rounded-lg flex items-center gap-3" data-cluster-id="${id}">
+                    <input type="checkbox" id="check-${id}" data-cluster-id="${id}" class="h-6 w-6 bg-slate-700 border-slate-500 rounded text-teal-500 focus:ring-teal-500 cursor-pointer flex-shrink-0">
+                    <div class="flex-grow">
+                        <div class="flex justify-between items-start">
+                             <h3 class="font-bold text-slate-200 truncate pr-2">${id}</h3>
+                             <div class="text-right flex-shrink-0">${cutoffHtml}</div>
+                        </div>
+                        <div class="flex justify-between items-baseline text-xs text-slate-400 mt-1">
+                            <span><span class="font-bold text-teal-300">${details.bag_count}</span> bags / <span class="font-bold text-blue-300">${details.wbn_count}</span> wbns</span>
+                            <button class="view-cluster-btn text-xs bg-teal-600/50 text-teal-300 py-1 px-2 rounded-md hover:bg-teal-600/80" data-cluster-id="${id}">View</button>
+                        </div>
+                    </div>
+                </div>
+            `}).join('');
+            
+            clusterSummaryListEl.querySelectorAll('.view-cluster-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const clusterId = e.currentTarget.dataset.clusterId;
+                    const clusterData = state.fullAnalysisData.cluster_details[clusterId];
+                    if (clusterData) showDetailModal({ bags: clusterData.bags, context: { type: 'cluster', ids: [clusterId] }, title: `Cluster: ${clusterId}` });
+                });
+            });
+            
+            updateDataTimestamp();
+            startTimers();
+        }
+        
+        // --- Modal & Detail View ---
+        const modalContainer = document.getElementById('modal-container');
+
+        function showDetailModal({ bags, context, title }) {
+            const sortedBags = [...bags].sort((a, b) => b.age_hours - a.age_hours);
+            
+            const content = bags.length > 0 ? `
+                <div class="space-y-2">
+                ${sortedBags.map(bag => `
+                    <div class="bg-slate-800 p-3 rounded-lg">
+                        <div class="flex justify-between items-start">
+                            <a href="${BAG_URL_PREFIX}${bag.bag_id}/" target="_blank" class="font-bold text-blue-400 hover:underline">${bag.bag_id}</a>
+                            <span class="text-sm font-semibold">${bag.age_str}</span>
+                        </div>
+                        <div class="text-xs text-slate-400 mt-1">
+                            <span>${bag.wbn_count} WBNs in </span>
+                            <span class="font-medium text-slate-300">${Object.keys(bag.clusters).join(', ')}</span>
+                        </div>
+                    </div>
+                `).join('')}
+                </div>
+            ` : `<p class="text-slate-400 text-center py-4">No bags match the criteria.</p>`;
+            
+            showModal(title, content, false);
+        }
+
+        function showModal(title, content, isMenu = false, onConfirm = null) {
+            const modalId = `modal-${Date.now()}`;
+            const modalHTML = `
+                <div id="${modalId}-overlay" class="modal-overlay"></div>
+                <div id="${modalId}-content" class="modal-content glass-panel rounded-t-2xl p-4 max-h-[85vh] flex flex-col">
+                    <div class="flex-shrink-0 pb-2 mb-3 border-b border-slate-700 flex justify-between items-center">
+                        <h3 class="text-lg font-bold">${title}</h3>
+                        <button class="close-modal-btn p-2 -mr-2 text-2xl">&times;</button>
+                    </div>
+                    <div class="overflow-y-auto flex-grow">${content}</div>
+                    <div class="flex-shrink-0 pt-3 mt-2 border-t border-slate-700 flex justify-end gap-3">
+                        ${isMenu ? `<button id="load-new-data-btn" class="w-full text-center bg-blue-600 text-white py-3 px-4 rounded-lg">Load New Data</button>` : ''}
+                        ${onConfirm ? `<button class="modal-cancel-btn text-sm bg-slate-600 text-white py-2 px-4 rounded-md hover:bg-slate-500">Cancel</button>
+                                     <button class="modal-confirm-btn text-sm bg-teal-600 text-white py-2 px-4 rounded-md hover:bg-teal-500">Apply</button>` : ''}
+                    </div>
+                </div>
+            `;
+            modalContainer.innerHTML = modalHTML;
+            
+            const overlay = document.getElementById(`${modalId}-overlay`);
+            const modalContent = document.getElementById(`${modalId}-content`);
+            
+            setTimeout(() => {
+                overlay.classList.add('show');
+                modalContent.classList.add('show');
+            }, 10);
+
+            const closeModal = () => {
+                overlay.classList.remove('show');
+                modalContent.classList.remove('show');
+                setTimeout(() => modalContainer.innerHTML = '', 300);
+            };
+
+            overlay.addEventListener('click', closeModal);
+            modalContent.querySelector('.close-modal-btn').addEventListener('click', closeModal);
+            if(isMenu) {
+                document.getElementById('load-new-data-btn').addEventListener('click', () => location.reload());
+            }
+            if(onConfirm) {
+                modalContent.querySelector('.modal-cancel-btn').addEventListener('click', closeModal);
+                modalContent.querySelector('.modal-confirm-btn').addEventListener('click', () => {
+                    if(onConfirm(modalContent)) closeModal();
+                });
+            }
+        }
+        
+        // --- Scan Session Logic ---
+        const startScanBtn = document.getElementById('start-scan-session-btn');
+        const endScanBtn = document.getElementById('end-scan-session-btn');
+        const finishSessionBtn = document.getElementById('finish-session-btn');
+        const scanInput = document.getElementById('scan-input');
+        const scanFeedbackEl = document.getElementById('scan-feedback');
+        const progressTextEl = document.getElementById('progress-text');
+        const progressPercentageEl = document.getElementById('progress-percentage');
+        const progressBarEl = document.getElementById('progress-bar');
+
+        function initializeScanSession() {
+            const selectedClusters = new Set(Array.from(document.querySelectorAll('#cluster-summary-list input:checked')).map(cb => cb.dataset.clusterId));
+            if (selectedClusters.size === 0) { 
+                showModal("No Selection", "<p>Please select at least one cluster from the dashboard to start a scan session.</p>");
+                return; 
+            }
+            state.scanTargetData.clusters = selectedClusters;
+            state.scanTargetData.bags = {};
+            state.fullAnalysisData.bags.forEach(bag => {
+                const hasTargetCluster = Object.keys(bag.clusters).some(c => selectedClusters.has(c));
+                if (hasTargetCluster) state.scanTargetData.bags[bag.bag_id] = { ...bag, scanned: false };
+            });
+            state.scanTargetData.totalBags = Object.keys(state.scanTargetData.bags).length;
+            state.scanTargetData.foundBags = 0;
+            state.isScanning = true;
+            
+            updateScanProgress();
+            showScreen('scan');
+            setTimeout(() => scanInput.focus(), 300);
+        }
+
+        function updateScanProgress() {
+            const { totalBags, foundBags } = state.scanTargetData;
+            const percent = totalBags > 0 ? Math.round((foundBags / totalBags) * 100) : 0;
+            progressTextEl.textContent = `${foundBags} / ${totalBags} Bags Found`;
+            progressPercentageEl.textContent = `${percent}%`;
+            progressBarEl.style.width = `${percent}%`;
+        }
+
+        function processScan(bagId) {
+            if (!state.isScanning) return;
+            const bagData = state.fullAnalysisData.bags.find(b => b.bag_id === bagId);
+            const targetBagData = state.scanTargetData.bags[bagId];
+            scanInput.value = '';
+            scanFeedbackEl.classList.remove('animate-pulse', 'text-slate-700');
+
+            if (targetBagData && !targetBagData.scanned) {
+                targetBagData.scanned = true;
+                state.scanTargetData.foundBags++;
+                updateScanProgress();
+                showResultOverlay('PRIORITY', bagId, targetBagData);
+                synths.success.triggerAttackRelease('C5', '0.5s');
+                 if (state.scanTargetData.foundBags === state.scanTargetData.totalBags) {
+                    setTimeout(showCompletion, 2000);
+                }
+            } else if (targetBagData && targetBagData.scanned) {
+                showResultOverlay('DUPLICATE', bagId, targetBagData);
+                synths.nonTarget.triggerAttackRelease('A3', '0.5s');
+            } else if (bagData) {
+                showResultOverlay('NON-TARGET', bagId, bagData);
+                synths.nonTarget.triggerAttackRelease('A3', '0.5s');
+            } else {
+                showResultOverlay('NOT IN LIST', bagId, null);
+                synths.error.triggerAttackRelease('C3', '0.5s');
+            }
+        }
+        
+        let scanDebounceTimer;
+        scanInput.addEventListener('input', () => {
+            clearTimeout(scanDebounceTimer);
+            scanDebounceTimer = setTimeout(() => {
+                const bagId = scanInput.value.trim().toUpperCase();
+                if (bagId) processScan(bagId);
+            }, 200);
+        });
+        
+        startScanBtn.addEventListener('click', initializeScanSession);
+        endScanBtn.addEventListener('click', () => showScreen('dashboard'));
+        finishSessionBtn.addEventListener('click', () => {
+            document.getElementById('completion-overlay').classList.add('hidden');
+            showScreen('dashboard');
+        });
+
+        // --- Overlays & Completion ---
+        const resultOverlay = document.getElementById('result-overlay');
+        const resultStatusEl = document.getElementById('result-status');
+        const resultBagIdEl = document.getElementById('result-bag-id');
+        const resultBagDetailsEl = document.getElementById('result-bag-details');
+
+        function showResultOverlay(status, bagId, data) {
+            state.isScanning = false;
+            const statusClasses = {
+                'PRIORITY': 'text-green-400', 'DUPLICATE': 'text-yellow-400',
+                'NON-TARGET': 'text-amber-500', 'NOT IN LIST': 'text-red-500'
+            };
+            resultStatusEl.className = `text-6xl font-black ${statusClasses[status] || 'text-white'}`;
+            resultStatusEl.textContent = status;
+            resultBagIdEl.textContent = bagId;
+            resultBagDetailsEl.innerHTML = data ? Object.entries(data.clusters).map(([c, n]) => `<div><strong>${n}</strong> for <strong>${c}</strong></div>`).join('') : 'Bag not found in uploaded data.';
+            resultOverlay.classList.remove('hidden');
+            setTimeout(hideResultOverlay, 2500);
+        }
+        function hideResultOverlay() {
+            resultOverlay.classList.add('hidden');
+            scanFeedbackEl.classList.add('animate-pulse', 'text-slate-700');
+            scanFeedbackEl.textContent = 'READY';
+            state.isScanning = true;
+            scanInput.focus();
+        }
+        function showCompletion() {
+            state.isScanning = false;
+            document.getElementById('completion-overlay').classList.remove('hidden');
+            synths.completion.triggerAttackRelease(["C4", "E4", "G4", "C5"], "1s", Tone.now());
+        }
+
+        // --- Event Listeners for Buttons ---
+        document.getElementById('view-all-bags-btn').addEventListener('click', () => {
+            showDetailModal({ bags: state.fullAnalysisData.bags, context: { type: 'all' }, title: 'All Pending Bags' });
+        });
+        document.getElementById('show-main-menu-btn').addEventListener('click', () => {
+            showModal("Menu", "", true);
+        });
+
+        // --- Alerts, Cutoff & Ticker Logic ---
+        const clusterCutoffs = {
+            "HBX-5-Hassan": ["09:30"], "HBX-9-Davangere": ["16:30", "20:30"], "HBX-5-Shimoga": ["18:00"],
+            "HBX-9-Davangere_mix_bag": ["16:30", "20:30"], "HBX-5-Hassan_mix_bag": ["09:30"],
+            "Hubli-A-ShanthiColony": ["04:30", "09:30"], "HBX-G-Dharwad_Mrityunjaya_D": ["03:15"], "HBX-A-Kalaghatgi_Gabbur_D": ["04:00"],
+            "HBX-B-Ilkal_Ward4_D": ["02:00"], "HBX-E-Hangal_PalaRd_D": ["03:15"], "HBX-A-Hubli_NehruNagar_D": ["04:30", "09:30"],
+            "HUB-D-Gadag_Laxmeshwar_D": ["03:00"], "Yel-H-Yelburga_SurabhiColony_D": ["03:00"], "HBX-I-Yellapur": ["02:30"],
+            "HBX-H-Navalgund_Nargund_DPP": ["03:00"], "HBX-D-Gadag_VijayNagara_D": ["03:00"], "HBX-H-Rona": ["03:00"],
+            "HBX-C-Sirsi_Kasturbanagar_D": ["03:00"], "HBX-I-Haliyal_DPP": ["02:30"], "Hubli_Jnntnagar_H-F-Saundatti_Bypassroad_D": ["03:30"],
+            "KUS-B-Ilkal_Kushtagi_DPP": ["02:00"], "HBX-E-Kalaghatgi_Machapur_D": ["03:15"], "HBX-I-Dandeli_MarutiNgr_DPP": ["02:30"],
+            "HBX-1-Bellary": ["10:30"], "HBX-6-Pune_Chimbali_H": ["01:00"], "HBX-E-Mundgod_BankapuraRd_DPP": ["03:15"],
+            "HBX-1-Anantapur": ["10:30"], "HBX-3-Belgaum": ["16:30"], "HBX-D-Navalgund_BasveshwarNgr_DPP": ["03:00"],
+            "HBX-A-Badami_SaibabaNagar_DPP": ["03:00"], "HBX-2-Bangalore_Hoskote_GW": ["14:30"], "HBX-4-Bhiwandi": ["06:00", "11:30", "18:30", "03:00"],
+            "HBX-G-Alnavar": ["03:15"], "HBX-G-Alnavar_Gharli_DPP": ["03:15"], "HBX-6-Gurgaon": ["18:00"],
+            "HBX-3-Kolhapur": ["03:00", "16:30"], "HBX-7-Mangalore": ["09:30"], "Hubli-F-Ramdurg_MahanteshNagar_DPP": ["03:30"],
+            "HBX-4-Surat": ["15:30"], "HBX-2-Coimbatore_Pudhupalayam_GW": ["23:00"], "HBX-8-Goa": ["16:30"], "HBX-6-Pune_Sudhwadi": ["23:30"]
+        };
+
+        function getNextCutoff(clusterId) {
+            const now = new Date();
+            const cutoffs = clusterCutoffs[clusterId] || [];
+            let nextCutoff = null;
+            const todayCutoffs = cutoffs.map(timeStr => {
+                const [hours, minutes] = timeStr.split(':').map(Number);
+                const d = new Date(now);
+                d.setHours(hours, minutes, 0, 0);
+                return d;
+            }).sort((a, b) => a - b);
+            for (const cutoff of todayCutoffs) { if (cutoff > now) { nextCutoff = cutoff; break; } }
+            if (!nextCutoff && todayCutoffs.length > 0) {
+                nextCutoff = new Date(todayCutoffs[0]);
+                nextCutoff.setDate(nextCutoff.getDate() + 1);
+            }
+            return nextCutoff;
+        }
+        
+        function updateDataTimestamp() {
+            if (!state.fileLastModified) {
+                dataTimestampContainer.innerHTML = '<p class="text-slate-500">No data file loaded.</p>';
+                return;
+            }
+
+            const now = new Date();
+            const fileDate = new Date(state.fileLastModified);
+            const ageInMinutes = (now - fileDate) / (1000 * 60);
+
+            const timeOptions = { hour: '2-digit', minute: '2-digit', hour12: true };
+            const dateOptions = { month: 'short', day: 'numeric' };
+            const formattedTime = fileDate.toLocaleTimeString('en-US', timeOptions);
+            const formattedDate = fileDate.toLocaleDateString('en-US', dateOptions);
+
+            let warningHTML = '';
+            if (ageInMinutes > 30) {
+                warningHTML = `<p class="text-amber-400 font-bold animate-pulse mt-1">Data >30 mins old. Upload new file for accurate results.</p>`;
+            }
+
+            dataTimestampContainer.innerHTML = `
+                <p class="text-slate-400">Data as of ${formattedTime}, ${formattedDate}</p>
+                ${warningHTML}
+            `;
+        }
+
+
+        function updateCutoffTickers() {
+            const now = new Date();
+            document.querySelectorAll('.cutoff-ticker').forEach(ticker => {
+                const cutoffTime = new Date(ticker.dataset.cutoffTime);
+                const diff = cutoffTime - now;
+                if (diff < 0) {
+                    ticker.textContent = "Passed";
+                    ticker.className = 'cutoff-ticker text-slate-500 text-xs';
+                    return;
+                }
+                const hours = Math.floor(diff / (1000 * 60 * 60));
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                ticker.textContent = `${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`;
+                let newClass = 'cutoff-ticker font-semibold text-sm ';
+                if (diff < 2 * 60 * 60 * 1000) newClass += 'critical';
+                else if (diff < 4 * 60 * 60 * 1000) newClass += 'warning';
+                else newClass += 'safe';
+                ticker.className = newClass;
+            });
+        }
+        
+        function generateAlertsData() {
+            if (!state.fullAnalysisData) return { imminent: [], past: [], outliers: [] };
+            const now = new Date();
+            const alerts = {};
+            const atRiskShipments = state.fullAnalysisData.shipments.filter(s => s.age_hours >= 2.5);
+            for (const shipment of atRiskShipments) {
+                const nextCutoff = getNextCutoff(shipment.cluster_id);
+                if (nextCutoff && (nextCutoff - now) < 2 * 60 * 60 * 1000) {
+                    if (!alerts[shipment.cluster_id]) alerts[shipment.cluster_id] = { imminent: [], past: [] };
+                    alerts[shipment.cluster_id].imminent.push({shipment, cutoff: nextCutoff});
+                }
+            }
+            const outlierBags = state.fullAnalysisData.bags.filter(b => b.wbn_count >= 7 && b.age_hours >= 7);
+            return { alerts, outliers: outlierBags };
+        }
+
+        function updateAlertsBadge() {
+            const { alerts, outliers } = generateAlertsData();
+            const criticalAlertsCount = Object.keys(alerts).length + (outliers.length > 0 ? 1 : 0);
+            const badge = document.getElementById('alerts-badge');
+            if (criticalAlertsCount > 0) {
+                badge.textContent = criticalAlertsCount;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        function startTimers() {
+            Object.values(state.intervals).forEach(clearInterval);
+            state.intervals.clock = setInterval(() => {
+                liveClockEl.textContent = new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Kolkata' });
+            }, 1000);
+            state.intervals.cutoffTicker = setInterval(updateCutoffTickers, 1000);
+            state.intervals.alerts = setInterval(updateAlertsBadge, 60000);
+            updateCutoffTickers();
+            updateAlertsBadge();
+        }
+
+        document.getElementById('show-alerts-btn').addEventListener('click', () => {
+            const { alerts, outliers } = generateAlertsData();
+            let content = '';
+            
+            if (outliers.length > 0) {
+                content += `
+                    <div class="glass-panel p-3 alert-critical mb-3 cursor-pointer" data-alert-type="outliers">
+                        <h3 class="font-bold text-amber-400">CRITICAL: Outlier Bags</h3>
+                        <p class="text-sm"><strong class="text-lg">${outliers.length}</strong> high-volume, aged bags require attention. Tap to view.</p>
+                    </div>`;
+            }
+
+            for (const clusterId in alerts) {
+                const imminentShipments = alerts[clusterId].imminent;
+                if (imminentShipments.length > 0) {
+                     const cutoffTime = imminentShipments[0].cutoff;
+                     const minutesRemaining = Math.round((cutoffTime - new Date()) / 60000);
+                     content += `
+                        <div class="glass-panel p-3 alert-critical mb-3 cursor-pointer" data-alert-type="imminent" data-cluster-id="${clusterId}">
+                            <h3 class="font-bold text-amber-400">CRITICAL: ${clusterId}</h3>
+                            <p class="text-sm"><strong class="text-lg">${imminentShipments.length}</strong> shipments will fail in ~${minutesRemaining} mins. Tap to view.</p>
+                        </div>`;
+                }
+            }
+
+            if (!content) content = '<p class="text-slate-400 text-center py-4">No active alerts. Great job!</p>';
+            
+            showModal("Alerts & Insights", content);
+
+            // Add listeners to the new modal content
+            document.querySelector('.modal-content').addEventListener('click', (e) => {
+                const alertEl = e.target.closest('[data-alert-type]');
+                if (!alertEl) return;
+                
+                const alertType = alertEl.dataset.alertType;
+                if (alertType === 'outliers') {
+                    showDetailModal({ bags: outliers, title: 'Outlier Bags' });
+                } else if (alertType === 'imminent') {
+                    const clusterId = alertEl.dataset.clusterId;
+                    const bagsToShow = state.fullAnalysisData.bags.filter(bag => 
+                        Object.keys(bag.clusters).includes(clusterId) && alerts[clusterId].imminent.some(i => i.shipment.bag_id === bag.bag_id)
+                    );
+                    showDetailModal({ bags: bagsToShow, title: `Imminent Failure: ${clusterId}` });
+                }
+            });
+        });
+        
+        document.getElementById('magic-filter-btn').addEventListener('click', () => {
+            const fields = { 'Bag ID': 'bag_id', 'Cluster Name': 'clusters', 'WBN Count': 'wbn_count', 'Age (Hours)': 'age_hours' };
+            const operators = {
+                'Text': [ {val:'is', lbl:'is'}, {val:'is not', lbl:'is not'}, {val:'contains', lbl:'contains'} ],
+                'Numeric': [ {val:'>', lbl:'>'}, {val:'<', lbl:'<'}, {val:'==', lbl:'='}, {val:'>=', lbl:'>='}, {val:'<=', lbl:'<='} ]
+            };
+
+            let content = `<div id="filter-rules-container" class="space-y-3"></div>
+                           <button id="add-rule-btn" class="text-sm bg-blue-600 text-white py-2 px-3 rounded-md hover:bg-blue-500 mt-4 w-full">+ Add Rule</button>`;
+            
+            const onConfirm = (modal) => {
+                const rules = Array.from(modal.querySelectorAll('.filter-rule')).map(rd => ({
+                    logic: rd.querySelector('select[name="logic"]') ? rd.querySelector('select[name="logic"]').value : 'INIT',
+                    field: rd.querySelector('select[name="field"]').value,
+                    operator: rd.querySelector('select[name="operator"]').value,
+                    value: rd.querySelector('input[name="value"]').value
+                })).filter(r => r.value);
+
+                if (rules.length === 0) return true;
+
+                const filteredBags = state.fullAnalysisData.bags.filter(row => {
+                    let finalMatch = false;
+                    for (let i = 0; i < rules.length; i++) {
+                        const rule = rules[i];
+                        const checkRule = (r) => {
+                            if (r.field === 'clusters') {
+                                const clusterList = Object.keys(row.clusters).map(c => c.toLowerCase());
+                                const filterValue = r.value.toLowerCase();
+                                switch (r.operator) {
+                                    case 'is': case 'contains': return clusterList.includes(filterValue);
+                                    case 'is not': return !clusterList.includes(filterValue);
+                                    default: return false;
+                                }
+                            }
+                            let rowValue = row[r.field];
+                            if (rowValue === null || rowValue === undefined) return false;
+                            let value = (r.field === 'age_hours' || r.field === 'wbn_count') ? parseFloat(r.value) : r.value;
+                            const rowStringValue = String(rowValue).toLowerCase();
+                            const valueString = String(value).toLowerCase();
+                            switch (r.operator) {
+                                case 'is': return rowStringValue == valueString;
+                                case 'is not': return rowStringValue != valueString;
+                                case 'contains': return rowStringValue.includes(valueString);
+                                case '>': return rowValue > value; case '<': return rowValue < value;
+                                case '==': return rowValue == value; case '>=': return rowValue >= value;
+                                case '<=': return rowValue <= value; default: return false;
+                            }
+                        };
+                        const currentMatch = checkRule(rule);
+                        if (i === 0) finalMatch = currentMatch;
+                        else if (rule.logic === 'AND') finalMatch = finalMatch && currentMatch;
+                        else if (rule.logic === 'OR') finalMatch = finalMatch || currentMatch;
+                    }
+                    return finalMatch;
+                });
+                showDetailModal({ bags: filteredBags, title: 'Filtered Results' });
+                return true;
+            };
+
+            showModal("Magic Filter", content, false, onConfirm);
+            
+            const rulesContainer = document.getElementById('filter-rules-container');
+            const addRuleBtn = document.getElementById('add-rule-btn');
+
+            const createRule = () => {
+                const ruleCount = rulesContainer.children.length;
+                const ruleDiv = document.createElement('div');
+                ruleDiv.className = 'filter-rule bg-slate-800 p-3 rounded-lg space-y-2';
+                let fieldOptions = Object.keys(fields).map(name => `<option value="${fields[name]}">${name}</option>`).join('');
+                
+                let logicSelector = ruleCount > 0 ? `
+                    <select name="logic" class="p-2 border rounded-md bg-slate-700 border-slate-600 text-sm w-full">
+                        <option value="AND">AND</option><option value="OR">OR</option>
+                    </select>` : '';
+
+                ruleDiv.innerHTML = `
+                    ${logicSelector}
+                    <div class="grid grid-cols-2 gap-2">
+                        <select name="field" class="p-2 border rounded-md bg-slate-700 border-slate-600 text-sm w-full">${fieldOptions}</select>
+                        <select name="operator" class="p-2 border rounded-md bg-slate-700 border-slate-600 text-sm w-full"></select>
+                    </div>
+                    <input name="value" class="p-2 border rounded-md bg-slate-700 border-slate-600 text-sm w-full" placeholder="Enter value...">
+                    <button class="remove-rule-btn text-xs text-red-400 hover:text-red-300 w-full text-right">Remove</button>
+                `;
+                rulesContainer.appendChild(ruleDiv);
+
+                const fieldSelect = ruleDiv.querySelector('select[name="field"]');
+                const opSelect = ruleDiv.querySelector('select[name="operator"]');
+                const updateRuleUI = () => {
+                    const isNumeric = ['age_hours', 'wbn_count'].includes(fieldSelect.value);
+                    opSelect.innerHTML = (isNumeric ? operators.Numeric : operators.Text).map(op => `<option value="${op.val}">${op.lbl}</option>`).join('');
+                };
+                fieldSelect.addEventListener('change', updateRuleUI);
+                ruleDiv.querySelector('.remove-rule-btn').addEventListener('click', () => ruleDiv.remove());
+                updateRuleUI();
+            };
+            addRuleBtn.addEventListener('click', createRule);
+            createRule(); // Start with one rule
+        });
+
     });
     </script>
 </body>
