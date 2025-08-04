@@ -6,6 +6,8 @@
     <title>MIX-SIGHT Mobile</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <!-- Barcode and Text Recognition Library -->
+    <script src="https://cdn.jsdelivr.net/npm/scandit-sdk@5.x"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -113,6 +115,18 @@
             0%, 100% { border-left-color: var(--amber-color); }
             50% { border-left-color: #fcd34d; } /* amber-300 */
         }
+        /* Camera Scanner Styles */
+        #camera-scanner-modal {
+            z-index: 100;
+        }
+        #barcode-picker {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        .scandit-logo { display: none !important; }
     </style>
 </head>
 <body class="min-h-screen">
@@ -220,7 +234,11 @@
         <div class="flex-grow flex flex-col items-center justify-center p-4">
             <div id="scan-feedback" class="text-6xl font-black text-slate-700 animate-pulse transition-all duration-300">READY</div>
             <input type="text" id="scan-input" autocomplete="off" class="bg-slate-800 border-2 border-slate-700 rounded-lg p-4 text-2xl text-center w-full max-w-sm mt-6 focus:outline-none focus:ring-4 focus:ring-teal-500/50" placeholder="Scan Bag ID...">
-            <div id="scan-progress-container" class="w-full max-w-sm mx-auto mt-6">
+            <button id="open-camera-scanner-btn" class="mt-6 bg-blue-600 text-white font-bold py-4 px-6 rounded-lg flex items-center gap-3">
+                <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                Scan with Camera
+            </button>
+            <div id="scan-progress-container" class="w-full max-w-sm mx-auto mt-8">
                 <div class="flex justify-between items-center mb-1">
                     <span id="progress-text" class="text-xs font-medium text-slate-300">Scan Progress</span>
                     <span id="progress-percentage" class="text-xs font-medium text-slate-300">0%</span>
@@ -263,6 +281,14 @@
             </button>
         </div>
     </div>
+    
+    <!-- Camera Scanner Modal -->
+    <div id="camera-scanner-modal" class="hidden fixed inset-0 bg-black">
+        <div id="barcode-picker"></div>
+        <div class="absolute top-4 left-4 text-white text-sm bg-black/50 p-2 rounded">Point camera at a barcode</div>
+        <button id="close-camera-scanner-btn" class="absolute top-4 right-4 text-white text-3xl font-bold">&times;</button>
+    </div>
+
 
     <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -281,6 +307,7 @@
                 alerts: null,
             },
             fontSize: 16, // Base font size in pixels
+            barcodePicker: null, // To hold the Scandit instance
         };
         const BAG_URL_PREFIX = "https://hq.delhivery.com/bag/";
         const WBN_URL_PREFIX = "https://hq.delhivery.com/p/pntrzz/";
@@ -610,6 +637,7 @@
         const progressTextEl = document.getElementById('progress-text');
         const progressPercentageEl = document.getElementById('progress-percentage');
         const progressBarEl = document.getElementById('progress-bar');
+        const cameraScannerModal = document.getElementById('camera-scanner-modal');
 
         function initializeScanSession() {
             const selectedClusters = new Set(Array.from(document.querySelectorAll('#cluster-summary-list input:checked')).map(cb => cb.dataset.clusterId));
@@ -1050,6 +1078,87 @@
             addRuleBtn.addEventListener('click', createRule);
             createRule(); // Start with one rule
         });
+
+        // --- Camera Scanner ---
+        const openCameraBtn = document.getElementById('open-camera-scanner-btn');
+        const closeCameraBtn = document.getElementById('close-camera-scanner-btn');
+        
+        async function initCameraScanner() {
+            // NOTE: A valid Scandit license key is required for production use.
+            // This key is for demonstration purposes only.
+            const licenseKey = "YOUR_LICENSE_KEY_HERE";
+            
+            try {
+                await ScanditSDK.configure(licenseKey, {
+                    engineLocation: "https://cdn.jsdelivr.net/npm/scandit-sdk@5.x/build/",
+                });
+
+                const picker = await ScanditSDK.BarcodePicker.create(document.getElementById("barcode-picker"), {
+                    playSoundOnScan: true,
+                    vibrateOnScan: true,
+                });
+
+                // Configure to scan for barcodes and text
+                const scanSettings = new ScanditSDK.ScanSettings({
+                    enabledSymbologies: ["code128", "data-matrix", "qr"],
+                    codeDuplicateFilter: 1000, // 1 second
+                    textRecognition: {
+                        enabled: true,
+                        // Regex for typical bag IDs, e.g., 'B-12345678'
+                        regex: "B-[0-9]{8}" 
+                    }
+                });
+                
+                picker.applyScanSettings(scanSettings);
+
+                picker.on("scan", (scanResult) => {
+                    const barcode = scanResult.barcodes[0];
+                    if (barcode) {
+                        closeCameraScanner();
+                        processScan(barcode.data.toUpperCase());
+                    }
+                });
+
+                picker.on("text-recognized", (textResult) => {
+                    const text = textResult.text;
+                    if (text && text.startsWith("B-")) {
+                         closeCameraScanner();
+                         processScan(text.toUpperCase());
+                    }
+                });
+
+                state.barcodePicker = picker;
+                
+            } catch (error) {
+                console.error("Scandit SDK Error:", error);
+                alert(`Camera Scanner Error: ${error.message}. This may be due to an invalid license key or browser incompatibility.`);
+            }
+        }
+
+        function openCameraScanner() {
+            if (!state.barcodePicker) {
+                initCameraScanner().then(() => {
+                    if (state.barcodePicker) {
+                        cameraScannerModal.classList.remove('hidden');
+                        state.barcodePicker.resumeScanning();
+                    }
+                });
+            } else {
+                 cameraScannerModal.classList.remove('hidden');
+                 state.barcodePicker.resumeScanning();
+            }
+        }
+
+        function closeCameraScanner() {
+            if (state.barcodePicker) {
+                state.barcodePicker.pauseScanning();
+            }
+            cameraScannerModal.classList.add('hidden');
+        }
+
+        openCameraBtn.addEventListener('click', openCameraScanner);
+        closeCameraBtn.addEventListener('click', closeCameraScanner);
+
 
     });
     </script>
