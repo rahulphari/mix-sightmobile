@@ -65,9 +65,6 @@
             padding-bottom: 0.5rem;
             margin-bottom: 1rem;
         }
-        .bottom-nav {
-            box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
-        }
         .modal-overlay {
             position: fixed;
             inset: 0;
@@ -151,6 +148,10 @@
                     <div id="live-clock" class="text-xs text-slate-400"></div>
                 </div>
                 <div class="flex items-center gap-3">
+                     <div id="font-size-controls" class="flex items-center gap-1">
+                        <button id="font-decrease-btn" class="w-8 h-8 rounded-full bg-slate-800/60 border border-slate-700 flex items-center justify-center font-bold text-lg">-</button>
+                        <button id="font-increase-btn" class="w-8 h-8 rounded-full bg-slate-800/60 border border-slate-700 flex items-center justify-center font-bold text-lg">+</button>
+                    </div>
                      <button id="show-alerts-btn" class="relative p-2 rounded-full bg-slate-800/60 border border-slate-700">
                         <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
                         <span id="alerts-badge" class="hidden absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center"></span>
@@ -174,9 +175,23 @@
             </div>
 
             <!-- Ageing Summary -->
-            <div class="glass-panel p-4 rounded-xl mb-6">
+            <div class="glass-panel p-4 rounded-xl">
                 <h2 class="section-title">Ageing Summary</h2>
                 <div id="ageing-summary" class="space-y-2"></div>
+            </div>
+
+            <!-- Big Action Button -->
+            <div class="my-6 flex justify-center">
+                <div class="w-40 h-40 rounded-full glass-panel p-2 flex shadow-lg">
+                    <button id="start-scan-session-btn" class="w-1/2 h-full bg-teal-500/80 rounded-l-full flex flex-col items-center justify-center text-slate-900 font-bold text-xs hover:bg-teal-400 transition-colors">
+                        <svg class="w-8 h-8" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" /></svg>
+                        <span>SCANNER</span>
+                    </button>
+                    <button id="short-shipments-btn" class="w-1/2 h-full bg-amber-500/80 rounded-r-full flex flex-col items-center justify-center text-slate-900 font-bold text-xs hover:bg-amber-400 transition-colors">
+                         <svg class="w-8 h-8" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM13.5 10.5h-6" /></svg>
+                        <span>SHORT WBNs</span>
+                    </button>
+                </div>
             </div>
             
             <!-- Cluster Summary -->
@@ -193,14 +208,6 @@
                 </div>
             </div>
         </main>
-        
-        <!-- Bottom Navigation -->
-        <footer class="bottom-nav fixed bottom-0 left-0 right-0 h-20 bg-slate-900/80 backdrop-blur-md border-t border-slate-700 flex items-center justify-center p-2">
-            <button id="start-scan-session-btn" class="bg-teal-400 text-slate-900 font-bold text-lg py-4 px-8 rounded-full shadow-lg shadow-teal-500/20 flex items-center gap-3 transform hover:scale-105 transition-transform">
-                <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" /></svg>
-                Start Scan Session
-            </button>
-        </footer>
     </div>
 
     <!-- Screen: Scan -->
@@ -272,7 +279,8 @@
                 clock: null,
                 cutoffTicker: null,
                 alerts: null,
-            }
+            },
+            fontSize: 16, // Base font size in pixels
         };
         const BAG_URL_PREFIX = "https://hq.delhivery.com/bag/";
         const WBN_URL_PREFIX = "https://hq.delhivery.com/p/pntrzz/";
@@ -500,7 +508,7 @@
         // --- Modal & Detail View ---
         const modalContainer = document.getElementById('modal-container');
 
-        function showDetailModal({ bags, context, title }) {
+        function showDetailModal({ bags, title }) {
             const sortedBags = [...bags].sort((a, b) => b.age_hours - a.age_hours);
             
             const content = bags.length > 0 ? `
@@ -522,6 +530,30 @@
             
             showModal(title, content, false);
         }
+
+        function showShipmentDetailModal({ shipments, title }) {
+            const sortedShipments = [...shipments].sort((a, b) => b.age_hours - a.age_hours);
+            
+            const content = shipments.length > 0 ? `
+                <div class="space-y-2">
+                ${sortedShipments.map(s => `
+                    <div class="bg-slate-800 p-3 rounded-lg">
+                        <div class="flex justify-between items-start">
+                            <a href="${WBN_URL_PREFIX}${s.wbn}/" target="_blank" class="font-bold text-blue-400 hover:underline">${s.wbn}</a>
+                            <span class="text-sm font-semibold">${s.age_hours.toFixed(1)} hrs</span>
+                        </div>
+                        <div class="text-xs text-slate-400 mt-1">
+                            <span>Bag: ${s.bag_id}</span> | 
+                            <span class="font-medium text-slate-300">${s.cluster_id}</span>
+                        </div>
+                    </div>
+                `).join('')}
+                </div>
+            ` : `<p class="text-slate-400 text-center py-4">No shipments match the criteria.</p>`;
+            
+            showModal(title, content, false);
+        }
+
 
         function showModal(title, content, isMenu = false, onConfirm = null) {
             const modalId = `modal-${Date.now()}`;
@@ -684,13 +716,69 @@
             synths.completion.triggerAttackRelease(["C4", "E4", "G4", "C5"], "1s", Tone.now());
         }
 
-        // --- Event Listeners for Buttons ---
+        // --- UI & Event Listeners ---
         document.getElementById('view-all-bags-btn').addEventListener('click', () => {
-            showDetailModal({ bags: state.fullAnalysisData.bags, context: { type: 'all' }, title: 'All Pending Bags' });
+            showDetailModal({ bags: state.fullAnalysisData.bags, title: 'All Pending Bags' });
         });
         document.getElementById('show-main-menu-btn').addEventListener('click', () => {
             showModal("Menu", "", true);
         });
+
+        // Font Size Controls
+        document.getElementById('font-increase-btn').addEventListener('click', () => {
+            if (state.fontSize < 22) { // Max font size
+                state.fontSize += 1;
+                document.documentElement.style.fontSize = `${state.fontSize}px`;
+            }
+        });
+        document.getElementById('font-decrease-btn').addEventListener('click', () => {
+             if (state.fontSize > 12) { // Min font size
+                state.fontSize -= 1;
+                document.documentElement.style.fontSize = `${state.fontSize}px`;
+            }
+        });
+
+        // Short Shipments Button
+        document.getElementById('short-shipments-btn').addEventListener('click', () => {
+            const content = `
+                <p class="text-sm text-slate-300 mb-4">Find shipments in low-volume, aged bags.</p>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300">Max WBNs in Bag (<=)</label>
+                        <input type="number" id="short-wbn-count" value="5" class="mt-1 block w-full bg-slate-700 border-slate-600 rounded-md shadow-sm p-2 text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300">Minimum Bag Age (Hours)</label>
+                        <input type="number" id="short-wbn-age" value="4" class="mt-1 block w-full bg-slate-700 border-slate-600 rounded-md shadow-sm p-2 text-white">
+                    </div>
+                </div>`;
+
+            const onConfirm = (modal) => {
+                const maxWbns = parseInt(modal.querySelector('#short-wbn-count').value, 10);
+                const minAge = parseInt(modal.querySelector('#short-wbn-age').value, 10);
+
+                if (isNaN(maxWbns) || isNaN(minAge)) {
+                    alert('Please enter valid numbers.');
+                    return false;
+                }
+
+                const bagsToInclude = state.fullAnalysisData.bags
+                    .filter(bag => bag.wbn_count <= maxWbns && bag.age_hours >= minAge)
+                    .map(bag => bag.bag_id);
+                
+                const matchingShipments = state.fullAnalysisData.shipments
+                    .filter(shipment => bagsToInclude.includes(shipment.bag_id));
+                
+                showShipmentDetailModal({
+                    shipments: matchingShipments, 
+                    title: `Short WBNs (<=${maxWbns} WBNs, >=${minAge} hrs)`
+                });
+                return true;
+            };
+            
+            showModal('Find Short Shipments', content, false, onConfirm);
+        });
+
 
         // --- Alerts, Cutoff & Ticker Logic ---
         const clusterCutoffs = {
