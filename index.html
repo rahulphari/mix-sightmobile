@@ -51,12 +51,14 @@
             border-radius: 0.5rem;
             padding: 1rem;
             transition: all 0.2s ease-in-out;
+            user-select: none; /* Prevent text selection on long press */
         }
         .cluster-card[data-selected='true'] {
             border-left-color: var(--accent-color);
             background-color: #334155; /* slate-700 */
         }
-        .ageing-card:active {
+        .ageing-card.active, .cluster-card.active {
+            transform: scale(0.98);
             background-color: #334155;
         }
 
@@ -85,9 +87,11 @@
             flex-direction: column;
         }
         
-        .cutoff-ticker.critical { color: var(--red-color); }
+        .cutoff-ticker.critical { color: var(--red-color); animation: pulse-text 1.5s infinite; }
         .cutoff-ticker.warning { color: var(--amber-color); }
         .cutoff-ticker.safe { color: var(--green-color); }
+        @keyframes pulse-text { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+
 
         /* Camera Scanner Styles */
         #camera-viewport {
@@ -143,6 +147,18 @@
         }
         .bfsi-indicator { background-color: #ca8a04; color: #fefce8; }
         .rt-indicator { background-color: #9333ea; color: #f5f3ff; }
+        
+        .loader {
+            width: 48px;
+            height: 48px;
+            border: 5px solid #FFF;
+            border-bottom-color: var(--accent-color);
+            border-radius: 50%;
+            display: inline-block;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+        }
+        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="min-h-screen">
@@ -161,7 +177,7 @@
             </label>
             <input type="file" id="csv-upload" class="hidden" accept=".csv, text/csv">
         </div>
-        <div id="upload-message" class="mt-4 text-center h-6"></div>
+        <div id="upload-message" class="mt-4 text-center h-12"></div>
     </div>
 
     <!-- Screen: Dashboard -->
@@ -192,10 +208,15 @@
         <h2 class="text-lg font-bold mt-6 mb-2">Ageing Summary</h2>
         <div id="ageing-summary-list" class="grid grid-cols-2 gap-3 mb-6"></div>
 
-        <h2 class="text-lg font-bold mt-6 mb-2">Cluster Summary</h2>
-        <div id="cluster-list" class="space-y-3">
-            <p class="text-slate-400 text-center py-8">Load data to see clusters.</p>
+        <h2 class="text-lg font-bold mt-6 mb-2">Next 5 Cutoffs</h2>
+        <div id="upcoming-clusters-list" class="space-y-3"></div>
+        
+        <div id="all-clusters-container" class="hidden">
+             <h2 class="text-lg font-bold mt-6 mb-2">Other Clusters</h2>
+             <div id="all-clusters-list" class="space-y-3"></div>
         </div>
+        
+        <button id="toggle-all-clusters-btn" class="w-full text-center mt-4 text-teal-300 font-semibold">View All Clusters</button>
 
         <div class="bottom-action-bar">
             <button id="start-scan-session-btn" class="w-full bg-teal-500 text-slate-900 font-bold py-4 rounded-lg text-lg">
@@ -218,6 +239,7 @@
              </button>
         </div>
         <div class="absolute bottom-4 left-4 right-4 text-center">
+            <div id="last-scan-display" class="text-white text-sm mb-2 h-6"></div>
             <div id="scan-feedback" class="text-6xl font-black text-white/50 transition-all duration-300">READY</div>
         </div>
     </div>
@@ -268,7 +290,6 @@
     </div>
 
     <script>
-    // FIX: Changed DOMContentLoaded to window.onload to prevent race conditions with external libraries.
     window.addEventListener('load', () => {
 
         // --- STATE MANAGEMENT ---
@@ -279,6 +300,7 @@
             isCameraActive: false,
             cameraCodeReader: null,
             isProcessingScan: false,
+            appInterval: null,
         };
 
         // --- ELEMENT SELECTORS ---
@@ -286,8 +308,9 @@
         const overlays = { result: document.getElementById('result-overlay'), completion: document.getElementById('completion-overlay') };
         const modals = { details: document.getElementById('details-modal'), manualInput: document.getElementById('manual-input-modal') };
         const uploadLabel = document.getElementById('upload-label'), csvUploadInput = document.getElementById('csv-upload'), fileNameEl = document.getElementById('file-name'), uploadMessageEl = document.getElementById('upload-message');
-        const totalBagsEl = document.getElementById('total-bags'), totalShipmentsEl = document.getElementById('total-shipments'), dashboardTimestampEl = document.getElementById('dashboard-timestamp'), clusterListEl = document.getElementById('cluster-list'), startScanBtn = document.getElementById('start-scan-session-btn'), showAlertsBtn = document.getElementById('show-alerts-btn'), alertsIndicator = document.getElementById('alerts-indicator'), ageingSummaryListEl = document.getElementById('ageing-summary-list'), viewAllBagsBtn = document.getElementById('view-all-bags-btn');
-        const endScanBtn = document.getElementById('end-scan-session-btn'), scanFeedbackEl = document.getElementById('scan-feedback'), toggleInputBtn = document.getElementById('toggle-input-btn'), cameraFeed = document.getElementById('camera-feed'), cameraStatus = document.getElementById('camera-status');
+        const totalBagsEl = document.getElementById('total-bags'), totalShipmentsEl = document.getElementById('total-shipments'), dashboardTimestampEl = document.getElementById('dashboard-timestamp'), startScanBtn = document.getElementById('start-scan-session-btn'), showAlertsBtn = document.getElementById('show-alerts-btn'), alertsIndicator = document.getElementById('alerts-indicator'), ageingSummaryListEl = document.getElementById('ageing-summary-list'), viewAllBagsBtn = document.getElementById('view-all-bags-btn');
+        const upcomingClustersListEl = document.getElementById('upcoming-clusters-list'), allClustersContainer = document.getElementById('all-clusters-container'), allClustersListEl = document.getElementById('all-clusters-list'), toggleAllClustersBtn = document.getElementById('toggle-all-clusters-btn');
+        const endScanBtn = document.getElementById('end-scan-session-btn'), scanFeedbackEl = document.getElementById('scan-feedback'), toggleInputBtn = document.getElementById('toggle-input-btn'), cameraFeed = document.getElementById('camera-feed'), cameraStatus = document.getElementById('camera-status'), lastScanDisplay = document.getElementById('last-scan-display');
         const scanInput = document.getElementById('scan-input'), closeManualInputBtn = document.getElementById('close-manual-input-btn'), submitManualInputBtn = document.getElementById('submit-manual-input-btn');
         const detailsModalTitle = document.getElementById('details-modal-title'), detailsModalContent = document.getElementById('details-modal-content'), closeDetailsModalBtn = document.getElementById('close-details-modal-btn'), detailsModalFooter = document.getElementById('details-modal-footer');
         const resultStatusEl = document.getElementById('result-status'), resultBagIdEl = document.getElementById('result-bag-id'), resultBagDetailsEl = document.getElementById('result-bag-details'), finishSessionBtn = document.getElementById('finish-session-btn');
@@ -339,6 +362,7 @@
 
                 const bags = Array.from(bagAggregates.values()).map(bag => ({
                     bag_id: bag.bag_id,
+                    first_bag_incoming_time_dt: bag.first_bag_incoming_time_dt, // Keep the original time for live calculations
                     age_hours: bag.bag_age_hours,
                     age_str: `${Math.floor(bag.bag_age_hours)}h ${Math.floor((bag.bag_age_hours * 60) % 60)}m`,
                     wbn_count: bag.wbns.size,
@@ -385,30 +409,69 @@
 
             totalBagsEl.textContent = data.total_pending_bags;
             totalShipmentsEl.textContent = data.total_pending_shipments;
-            dashboardTimestampEl.textContent = `Data from ${new Date().toLocaleTimeString()}`;
+            
+            if (state.appInterval) clearInterval(state.appInterval);
+            state.appInterval = setInterval(updateLiveElements, 1000);
+            updateLiveElements();
+            showScreen('dashboard');
+        }
 
-            ageingSummaryListEl.innerHTML = Object.entries(data.ageing_groups).map(([category, bags]) => `
+        function updateLiveElements() {
+            const currentTime = new Date();
+            dashboardTimestampEl.textContent = `Live @ ${currentTime.toLocaleTimeString()}`;
+
+            // Recalculate ages
+            state.fullAnalysisData.bags.forEach(bag => {
+                const incomingTime = new Date(bag.first_bag_incoming_time_dt || 0);
+                bag.age_hours = (currentTime - incomingTime) / 36e5;
+                bag.age_str = `${Math.floor(bag.age_hours)}h ${Math.floor((bag.age_hours * 60) % 60)}m`;
+            });
+
+            const ageing_groups = { "0 to 1 hr": [], "1 to 2 hrs": [], "2 to 4 hrs": [], "4+ hrs": [] };
+            state.fullAnalysisData.bags.forEach(bag => {
+                if (bag.age_hours <= 1) ageing_groups["0 to 1 hr"].push(bag);
+                else if (bag.age_hours <= 2) ageing_groups["1 to 2 hrs"].push(bag);
+                else if (bag.age_hours <= 4) ageing_groups["2 to 4 hrs"].push(bag);
+                else ageing_groups["4+ hrs"].push(bag);
+            });
+            state.fullAnalysisData.ageing_groups = ageing_groups;
+
+            ageingSummaryListEl.innerHTML = Object.entries(ageing_groups).map(([category, bags]) => `
                 <div class="ageing-card text-center" data-age-category="${category}">
                     <p class="font-bold text-teal-300">${bags.length}</p>
                     <p class="text-xs text-slate-400">${category}</p>
                 </div>
             `).join('');
 
-            const sortedClusters = Object.entries(data.cluster_details).sort(([,a], [,b]) => b.wbn_count - a.wbn_count);
-            clusterListEl.innerHTML = sortedClusters.map(([id, details]) => {
-                const nextCutoff = getNextCutoff(id);
+            const allClustersWithCutoff = Object.entries(state.fullAnalysisData.cluster_details).map(([id, details]) => ({
+                id, details, nextCutoff: getNextCutoff(id)
+            })).filter(c => c.nextCutoff);
+            
+            allClustersWithCutoff.sort((a, b) => a.nextCutoff - b.nextCutoff);
+
+            const upcomingClusters = allClustersWithCutoff.slice(0, 5);
+            const otherClusters = allClustersWithCutoff.slice(5);
+
+            const renderClusterCard = (cluster) => {
+                const { id, details, nextCutoff } = cluster;
+                const isSelected = document.querySelector(`.cluster-card[data-cluster-id="${id}"]`)?.dataset.selected === 'true';
                 const cutoffHtml = nextCutoff ? `<span class="font-semibold cutoff-ticker" data-cutoff-time="${nextCutoff.toISOString()}">--:--:--</span>` : `<span class="text-xs text-slate-500">No cutoff</span>`;
-                return `<div class="cluster-card" data-cluster-id="${id}" data-selected="false">
+                return `<div class="cluster-card" data-cluster-id="${id}" data-selected="${isSelected}">
                     <div class="flex items-center justify-between">
                         <div class="flex-grow"><h3 class="font-bold text-lg text-teal-300">${id}</h3><p class="text-sm text-slate-300">${details.bag_count} Bags / ${details.wbn_count} WBNs</p></div>
                         <div class="text-right flex-shrink-0 pl-2"><p class="text-xs text-slate-400">Next Cutoff</p>${cutoffHtml}</div>
                     </div></div>`;
-            }).join('');
+            };
             
-            if (state.tickerInterval) clearInterval(state.tickerInterval);
-            state.tickerInterval = setInterval(updateCutoffTickers, 1000);
+            upcomingClustersListEl.innerHTML = upcomingClusters.map(renderClusterCard).join('');
+            if (otherClusters.length > 0) {
+                allClustersListEl.innerHTML = otherClusters.map(renderClusterCard).join('');
+                toggleAllClustersBtn.classList.remove('hidden');
+            } else {
+                toggleAllClustersBtn.classList.add('hidden');
+            }
+            
             updateCutoffTickers();
-            showScreen('dashboard');
             generateAlerts();
         }
 
@@ -420,7 +483,8 @@
                 if (diff < 0) { ticker.textContent = "Passed"; ticker.className = 'cutoff-ticker text-slate-500 text-xs'; return; }
                 const hours = Math.floor(diff / 36e5);
                 const minutes = Math.floor((diff % 36e5) / 6e4);
-                ticker.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+                const seconds = Math.floor((diff % 6e4) / 1000);
+                ticker.textContent = `${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`;
                 let newClass = 'cutoff-ticker font-semibold ';
                 if (diff < 2 * 36e5) newClass += 'critical';
                 else if (diff < 4 * 36e5) newClass += 'warning';
@@ -461,7 +525,11 @@
 
         // --- CAMERA & SCANNING LOGIC ---
         async function startCameraScanner() {
-            if (!window.ZXing) { cameraStatus.textContent = 'Scanner library not loaded.'; return; }
+            if (typeof ZXing === 'undefined') {
+                cameraStatus.textContent = 'Scanner library not loaded.';
+                console.error("ZXing library is not available.");
+                return;
+            }
             state.cameraCodeReader = new ZXing.BrowserCodeReader();
             cameraStatus.textContent = 'Requesting camera...';
             try {
@@ -507,6 +575,7 @@
                     synths.error.triggerAttackRelease('C3', '0.5s');
                 }
             }
+            lastScanDisplay.innerHTML = `Last: <span class="${targetBagData ? 'text-green-400' : 'text-amber-400'}">${bagId}</span>`;
         }
         
         function markBagAsFound(bagId) {
@@ -545,18 +614,21 @@
         function handleFile(file) {
             if (!file || !file.type.match('text/csv')) { uploadMessageEl.textContent = "Please select a valid CSV file."; return; }
             fileNameEl.textContent = file.name;
-            uploadMessageEl.textContent = 'Analyzing...';
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                state.fullAnalysisData = performAnalysisInBrowser(event.target.result);
-                if (state.fullAnalysisData) renderDashboard();
-            };
-            reader.readAsText(file);
+            uploadMessageEl.innerHTML = `<div class="loader"></div>`;
+            setTimeout(() => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    state.fullAnalysisData = performAnalysisInBrowser(event.target.result);
+                    if (state.fullAnalysisData) renderDashboard();
+                    else uploadMessageEl.textContent = "Failed to analyze file.";
+                };
+                reader.readAsText(file);
+            }, 500);
         }
 
         function initializeScanSession() {
             const selectedClusters = new Set(Array.from(document.querySelectorAll(".cluster-card[data-selected='true']")).map(card => card.dataset.clusterId));
-            if (selectedClusters.size === 0) { showModal('No Selection', '<p>Tap on one or more clusters to select them for scanning.</p>', () => true); return; }
+            if (selectedClusters.size === 0) { showModal('No Selection', '<p>Long-press on one or more clusters to select them for scanning.</p>', () => true); return; }
             state.scanTargetData.clusters = selectedClusters;
             state.scanTargetData.bags = {};
             state.fullAnalysisData.bags.forEach(bag => {
@@ -574,6 +646,7 @@
         function endSession() {
             stopCameraScanner();
             state.isScanning = false;
+            if(state.appInterval) clearInterval(state.appInterval);
             overlays.completion.classList.add('hidden');
             document.querySelectorAll(".cluster-card[data-selected='true']").forEach(card => card.dataset.selected = 'false');
             showScreen('dashboard');
@@ -625,26 +698,73 @@
         endScanBtn.addEventListener('click', endSession);
         finishSessionBtn.addEventListener('click', endSession);
         
-        clusterListEl.addEventListener('click', (e) => {
-            const card = e.target.closest('.cluster-card');
+        let pressTimer = null;
+        let isLongPress = false;
+
+        screens.dashboard.addEventListener('pointerdown', (e) => {
+            const card = e.target.closest('.cluster-card, .ageing-card');
             if (!card) return;
-            const isSelected = card.dataset.selected === 'true';
-            card.dataset.selected = !isSelected;
+            isLongPress = false;
+            card.classList.add('active');
+            pressTimer = setTimeout(() => {
+                if (card.classList.contains('cluster-card')) {
+                    isLongPress = true;
+                    const isSelected = card.dataset.selected === 'true';
+                    card.dataset.selected = !isSelected;
+                    if (navigator.vibrate) navigator.vibrate(50);
+                }
+            }, 500);
         });
 
-        ageingSummaryListEl.addEventListener('click', (e) => {
-            const card = e.target.closest('.ageing-card');
-            if(card) {
-                const category = card.dataset.ageCategory;
+        screens.dashboard.addEventListener('pointerup', (e) => {
+            clearTimeout(pressTimer);
+            const card = e.target.closest('.cluster-card, .ageing-card');
+            if (card) card.classList.remove('active');
+            
+            if (isLongPress) {
+                e.preventDefault(); // Prevent click event after long press
+                return;
+            }
+        });
+
+        screens.dashboard.addEventListener('pointerleave', (e) => {
+             clearTimeout(pressTimer);
+             const card = e.target.closest('.cluster-card, .ageing-card');
+             if(card) card.classList.remove('active');
+        }, { capture: true });
+
+        screens.dashboard.addEventListener('click', (e) => {
+            const clusterCard = e.target.closest('.cluster-card');
+            if (clusterCard) {
+                const clusterId = clusterCard.dataset.clusterId;
+                const clusterData = state.fullAnalysisData.cluster_details[clusterId];
+                if (clusterData) {
+                    renderDetailedBagList(clusterData.bags, `Bags for ${clusterId}`);
+                    modals.details.classList.remove('hidden');
+                }
+                return;
+            }
+
+            const ageingCard = e.target.closest('.ageing-card');
+            if (ageingCard) {
+                const category = ageingCard.dataset.ageCategory;
                 const bags = state.fullAnalysisData.ageing_groups[category];
                 renderDetailedBagList(bags, `Bags: ${category}`);
                 modals.details.classList.remove('hidden');
+                return;
             }
         });
+
 
         viewAllBagsBtn.addEventListener('click', () => {
             renderDetailedBagList(state.fullAnalysisData.bags, 'All Pending Bags');
             modals.details.classList.remove('hidden');
+        });
+
+        toggleAllClustersBtn.addEventListener('click', (e) => {
+            const isHidden = allClustersContainer.classList.contains('hidden');
+            allClustersContainer.classList.toggle('hidden');
+            e.target.textContent = isHidden ? 'Show Less' : 'View All Clusters';
         });
 
         showAlertsBtn.addEventListener('click', () => {
