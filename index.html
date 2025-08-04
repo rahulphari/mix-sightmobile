@@ -160,18 +160,46 @@
         }
         @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
-        .scan-heartbeat {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background-color: var(--green-color);
-            margin-left: 8px;
-            animation: pulse-heartbeat 1s infinite;
+        #scan-target-container {
+            position: absolute;
+            top: 70px; /* Below top buttons */
+            left: 10px;
+            right: 10px;
+            bottom: 100px; /* Above bottom feedback */
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
-        @keyframes pulse-heartbeat {
-            0%, 100% { transform: scale(1); opacity: 0.7; }
-            50% { transform: scale(1.2); opacity: 1; }
+        #scan-target-list {
+            background-color: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(5px);
+            border-radius: 0.5rem;
+            padding: 10px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+        #scan-target-list h3 {
+            font-weight: bold;
+            color: var(--accent-color);
+            margin-top: 8px;
+            margin-bottom: 4px;
+            border-bottom: 1px solid var(--panel-border);
+            padding-bottom: 4px;
+        }
+        #scan-target-list ul {
+            list-style: none;
+            padding-left: 5px;
+        }
+        #scan-target-list li {
+            padding: 4px 0;
+            font-size: 0.9rem;
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+        }
+        #scan-target-list li.found {
+            text-decoration: line-through;
+            color: var(--green-color);
+            opacity: 0.7;
         }
     </style>
 </head>
@@ -242,14 +270,14 @@
     <!-- Screen: Scan -->
     <div id="scan-screen" class="hidden fixed inset-0 z-20 bg-black">
         <video id="camera-feed" class="camera-viewport" playsinline></video>
-        <div id="camera-overlay">
+        <div id="camera-overlay" class="pointer-events-none">
             <div id="camera-viewfinder"><div class="scan-line"></div></div>
-            <div id="camera-status" class="text-white mt-4 bg-black/50 px-3 py-1 rounded-md flex items-center">
-                <span>Initializing Camera...</span>
-                <span id="scan-heartbeat" class="hidden scan-heartbeat"></span>
-            </div>
-            <p id="scan-tips" class="hidden text-white text-sm mt-2 bg-black/50 px-3 py-1 rounded-md"></p>
         </div>
+        
+        <div id="scan-target-container" class="pointer-events-none">
+            <div id="scan-target-list" class="pointer-events-auto"></div>
+        </div>
+
         <div class="absolute top-4 right-4 left-4 flex justify-between items-center">
              <button id="end-scan-session-btn" class="text-white bg-black/50 py-2 px-4 rounded-lg">End Session</button>
              <div class="flex gap-2">
@@ -323,8 +351,7 @@
             cameraCodeReader: null,
             isProcessingScan: false,
             appInterval: null,
-            scanInterval: null, // For manual scan loop
-            videoStream: null, // To hold the camera stream
+            videoStream: null,
         };
 
         // --- ELEMENT SELECTORS ---
@@ -334,11 +361,11 @@
         const uploadLabel = document.getElementById('upload-label'), csvUploadInput = document.getElementById('csv-upload'), fileNameEl = document.getElementById('file-name'), uploadMessageEl = document.getElementById('upload-message');
         const totalBagsEl = document.getElementById('total-bags'), totalShipmentsEl = document.getElementById('total-shipments'), dashboardTimestampEl = document.getElementById('dashboard-timestamp'), startScanBtn = document.getElementById('start-scan-session-btn'), showAlertsBtn = document.getElementById('show-alerts-btn'), alertsIndicator = document.getElementById('alerts-indicator'), ageingSummaryListEl = document.getElementById('ageing-summary-list'), viewAllBagsBtn = document.getElementById('view-all-bags-btn');
         const upcomingClustersListEl = document.getElementById('upcoming-clusters-list'), allClustersContainer = document.getElementById('all-clusters-container'), allClustersListEl = document.getElementById('all-clusters-list'), toggleAllClustersBtn = document.getElementById('toggle-all-clusters-btn');
-        const endScanBtn = document.getElementById('end-scan-session-btn'), scanFeedbackEl = document.getElementById('scan-feedback'), toggleInputBtn = document.getElementById('toggle-input-btn'), cameraFeed = document.getElementById('camera-feed'), cameraStatus = document.getElementById('camera-status'), lastScanDisplay = document.getElementById('last-scan-display'), toggleTorchBtn = document.getElementById('toggle-torch-btn');
+        const endScanBtn = document.getElementById('end-scan-session-btn'), scanFeedbackEl = document.getElementById('scan-feedback'), toggleInputBtn = document.getElementById('toggle-input-btn'), cameraFeed = document.getElementById('camera-feed'), lastScanDisplay = document.getElementById('last-scan-display'), toggleTorchBtn = document.getElementById('toggle-torch-btn');
         const scanInput = document.getElementById('scan-input'), closeManualInputBtn = document.getElementById('close-manual-input-btn'), submitManualInputBtn = document.getElementById('submit-manual-input-btn');
         const detailsModalTitle = document.getElementById('details-modal-title'), detailsModalContent = document.getElementById('details-modal-content'), closeDetailsModalBtn = document.getElementById('close-details-modal-btn'), detailsModalFooter = document.getElementById('details-modal-footer');
         const resultStatusEl = document.getElementById('result-status'), resultBagIdEl = document.getElementById('result-bag-id'), resultBagDetailsEl = document.getElementById('result-bag-details'), finishSessionBtn = document.getElementById('finish-session-btn');
-        const scanHeartbeat = document.getElementById('scan-heartbeat');
+        const scanTargetListEl = document.getElementById('scan-target-list');
 
         // --- AUDIO SETUP ---
         function setupSynths() {
@@ -553,10 +580,6 @@
 
         // --- CAMERA & SCANNING LOGIC ---
         function stopCameraScanner() {
-            if (state.scanInterval) {
-                clearInterval(state.scanInterval);
-                state.scanInterval = null;
-            }
             if (state.videoStream) {
                 state.videoStream.getTracks().forEach(track => track.stop());
                 state.videoStream = null;
@@ -595,6 +618,12 @@
             if (!targetBagData || targetBagData.scanned) return;
             targetBagData.scanned = true;
             state.scanTargetData.foundBags++;
+            
+            const bagElement = document.getElementById(`scan-target-${bagId}`);
+            if (bagElement) {
+                bagElement.classList.add('found');
+            }
+
             if (state.scanTargetData.foundBags === state.scanTargetData.totalBags) {
                 setTimeout(showCompletion, 2500);
             }
@@ -620,6 +649,42 @@
             stopCameraScanner();
             overlays.completion.classList.remove('hidden');
             synths.completion.triggerAttackRelease(["C4", "E4", "G4", "C5"], "1s", Tone.now());
+        }
+
+        function renderScanTargets() {
+            scanTargetListEl.innerHTML = '';
+            const groupedByCluster = {};
+
+            for (const bag of Object.values(state.scanTargetData.bags)) {
+                const targetClusters = Object.keys(bag.clusters).filter(c => state.scanTargetData.clusters.has(c));
+                for (const clusterId of targetClusters) {
+                    if (!groupedByCluster[clusterId]) {
+                        groupedByCluster[clusterId] = [];
+                    }
+                    groupedByCluster[clusterId].push(bag);
+                }
+            }
+
+            for (const clusterId of Array.from(state.scanTargetData.clusters).sort()) {
+                const bags = groupedByCluster[clusterId] || [];
+                if (bags.length === 0) continue;
+
+                const clusterHeader = document.createElement('h3');
+                clusterHeader.textContent = clusterId;
+                scanTargetListEl.appendChild(clusterHeader);
+
+                const bagList = document.createElement('ul');
+                bags.sort((a,b) => b.age_hours - a.age_hours).forEach(bag => {
+                    const li = document.createElement('li');
+                    li.id = `scan-target-${bag.bag_id}`;
+                    li.textContent = bag.bag_id;
+                    if (bag.scanned) {
+                        li.classList.add('found');
+                    }
+                    bagList.appendChild(li);
+                });
+                scanTargetListEl.appendChild(bagList);
+            }
         }
 
         // --- EVENT HANDLERS ---
@@ -655,11 +720,8 @@
             state.scanTargetData.foundBags = 0;
             state.isScanning = true;
             
+            renderScanTargets();
             showScreen('scan');
-            cameraStatus.querySelector('span').textContent = 'Requesting Camera...';
-            const scanTipsEl = document.getElementById('scan-tips');
-            scanTipsEl.classList.add('hidden');
-            scanHeartbeat.classList.add('hidden');
 
             try {
                 if (typeof ZXing === 'undefined') throw new Error('Scanner library not loaded.');
@@ -674,38 +736,24 @@
                 const constraints = { video: { facingMode: 'environment' } };
                 state.videoStream = await navigator.mediaDevices.getUserMedia(constraints);
                 cameraFeed.srcObject = state.videoStream;
-                cameraFeed.play();
-
+                
                 const track = state.videoStream.getVideoTracks()[0];
                 const capabilities = track.getCapabilities();
                 if (capabilities.torch) {
                     toggleTorchBtn.classList.remove('hidden');
                 }
 
-                cameraStatus.querySelector('span').textContent = 'Scanning...';
-                scanHeartbeat.classList.remove('hidden');
-                scanTipsEl.textContent = "Tip: Hold barcode steady in good light.";
-                scanTipsEl.classList.remove('hidden');
-
-                state.scanInterval = setInterval(() => {
-                    if (state.isProcessingScan) return;
-                    try {
-                        const result = state.cameraCodeReader.decodeFromVideoElement(cameraFeed);
-                        if (result) {
-                            processScan(result.getText().toUpperCase());
-                        }
-                    } catch (err) {
-                        if (!(err instanceof ZXing.NotFoundException)) {
-                            console.error("Decode Error:", err);
-                        }
+                state.cameraCodeReader.decodeFromStream(state.videoStream, 'camera-feed', (result, err) => {
+                    if (result && !state.isProcessingScan) {
+                        processScan(result.getText().toUpperCase());
                     }
-                }, 300); // Scan every 300ms
+                    if (err && !(err instanceof ZXing.NotFoundException)) {
+                        console.error("Decode Error:", err);
+                    }
+                });
 
             } catch (err) {
                 console.error("Camera Initialization Error:", err);
-                cameraStatus.querySelector('span').textContent = `Error: ${err.message}`;
-                scanHeartbeat.classList.add('hidden');
-                
                 if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
                     showModal('Camera Permission Needed', '<p>This app needs access to your camera. Please grant permission in your browser settings and reload.</p>');
                 } else {
