@@ -8,8 +8,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
     <!-- Open Source Barcode Scanner Library -->
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-    <!-- Open Source Text Recognition (OCR) Library -->
-    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -309,11 +307,9 @@
                 clock: null,
                 cutoffTicker: null,
                 alerts: null,
-                ocr: null,
             },
             fontSize: 16, // Base font size in pixels
             html5QrCode: null,
-            tesseractWorker: null,
         };
         const BAG_URL_PREFIX = "https://hq.delhivery.com/bag/";
         const WBN_URL_PREFIX = "https://hq.delhivery.com/p/pntrzz/";
@@ -1092,11 +1088,12 @@
         
         async function initAndStartScanner() {
             cameraScannerModal.classList.remove('hidden');
-            scannerStatusEl.textContent = 'Initializing Engines...';
+            scannerStatusEl.textContent = 'Initializing Scanner...';
+            scannerStatusEl.classList.add('animate-pulse');
 
             // Barcode Scanner Success Callback
             const onScanSuccess = (decodedText, decodedResult) => {
-                console.log(`Code matched = ${decodedText}`, decodedResult);
+                console.log(`Barcode matched = ${decodedText}`, decodedResult);
                 closeCameraScanner();
                 processScan(decodedText.toUpperCase());
             };
@@ -1108,54 +1105,29 @@
 
             // Initialize Barcode Scanner
             state.html5QrCode = new Html5Qrcode("camera-feed-container");
-            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            const config = { 
+                fps: 10, 
+                qrbox: { width: 250, height: 150 },
+                // Important for better performance on mobile
+                experimentalFeatures: {
+                    useBarCodeDetectorIfSupported: true
+                },
+                rememberLastUsedCamera: true
+            };
             
             try {
                 await state.html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess, onScanFailure);
+                scannerStatusEl.textContent = 'Scanning for Barcodes...';
+                scannerStatusEl.classList.remove('animate-pulse');
             } catch (err) {
                 console.error("Error starting html5-qrcode:", err);
                 scannerStatusEl.textContent = 'Camera Error. Please refresh.';
-                return;
-            }
-
-            // Initialize OCR Engine in parallel
-            state.tesseractWorker = await Tesseract.createWorker('eng');
-            
-            scannerStatusEl.textContent = 'Scanning for Barcodes & Text...';
-            scannerStatusEl.classList.remove('animate-pulse');
-
-            // Start OCR loop
-            const videoElement = document.querySelector("#camera-feed-container video");
-            if (videoElement) {
-                state.intervals.ocr = setInterval(async () => {
-                    if (!cameraScannerModal.classList.contains('hidden')) {
-                         try {
-                            const { data: { text } } = await state.tesseractWorker.recognize(videoElement);
-                            // Simple regex to find potential bag IDs
-                            const matches = text.match(/B-\d{8}/g);
-                            if (matches && matches.length > 0) {
-                                closeCameraScanner();
-                                processScan(matches[0].toUpperCase());
-                            }
-                        } catch (err) {
-                            console.error("OCR Error:", err);
-                        }
-                    }
-                }, 2000); // OCR runs every 2 seconds
             }
         }
 
         function closeCameraScanner() {
             if (state.html5QrCode && state.html5QrCode.isScanning) {
                 state.html5QrCode.stop().catch(err => console.error("Error stopping scanner:", err));
-            }
-            if (state.intervals.ocr) {
-                clearInterval(state.intervals.ocr);
-                state.intervals.ocr = null;
-            }
-            if(state.tesseractWorker) {
-                state.tesseractWorker.terminate();
-                state.tesseractWorker = null;
             }
             cameraScannerModal.classList.add('hidden');
         }
