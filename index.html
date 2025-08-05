@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
     <!-- Open Source Barcode Scanner Library -->
-    <script src="https://unpkg.com/html5-qrcode@2.0.9/dist/html5-qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <!-- Open Source Text Recognition (OCR) Library -->
     <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -128,10 +128,8 @@
             width: 100%;
             height: 100%;
         }
-        #camera-feed-container video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
+        #html5-qrcode-scanner-container > div {
+            border: none !important;
         }
     </style>
 </head>
@@ -291,7 +289,7 @@
     <!-- Camera Scanner Modal -->
     <div id="camera-scanner-modal" class="hidden fixed inset-0 bg-black">
         <div id="camera-feed-container"></div>
-        <div class="absolute top-4 left-4 text-white text-sm bg-black/50 p-2 rounded">Point camera at a barcode or text</div>
+        <div id="scanner-status" class="absolute top-4 left-4 text-white text-sm bg-black/50 p-2 rounded animate-pulse">Initializing Scanner...</div>
         <button id="close-camera-scanner-btn" class="absolute top-4 right-4 text-white text-3xl font-bold">&times;</button>
     </div>
 
@@ -1090,80 +1088,79 @@
         // --- Camera Scanner ---
         const openCameraBtn = document.getElementById('open-camera-scanner-btn');
         const closeCameraBtn = document.getElementById('close-camera-scanner-btn');
+        const scannerStatusEl = document.getElementById('scanner-status');
         
-        async function initCameraScanner() {
-            // NOTE: Using a publicly available community license key for demonstration.
-            const licenseKey = "AenteADb0R0CoGz205d5xYJ08zC/DFlgI33j+R5f+nlx38hSh2jBLp3aC0s1yKjSoEIdQy7xM8Y2IeG2J0yI33q4wz2u5vKPk1f5vG4oYj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJj2QoJ-";
+        async function initAndStartScanner() {
+            cameraScannerModal.classList.remove('hidden');
+            scannerStatusEl.textContent = 'Initializing Engines...';
+
+            // Barcode Scanner Success Callback
+            const onScanSuccess = (decodedText, decodedResult) => {
+                console.log(`Code matched = ${decodedText}`, decodedResult);
+                closeCameraScanner();
+                processScan(decodedText.toUpperCase());
+            };
+
+            // Barcode Scanner Error Callback
+            const onScanFailure = (error) => {
+                // This is called frequently, so we don't log it to avoid console spam.
+            };
+
+            // Initialize Barcode Scanner
+            state.html5QrCode = new Html5Qrcode("camera-feed-container");
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
             
             try {
-                await ScanditSDK.configure(licenseKey, {
-                    engineLocation: "https://cdn.jsdelivr.net/npm/scandit-sdk@5.x/build/",
-                });
-
-                const picker = await ScanditSDK.BarcodePicker.create(document.getElementById("barcode-picker"), {
-                    playSoundOnScan: true,
-                    vibrateOnScan: true,
-                });
-
-                // Configure to scan for barcodes and text
-                const scanSettings = new ScanditSDK.ScanSettings({
-                    enabledSymbologies: ["code128", "data-matrix", "qr"],
-                    codeDuplicateFilter: 1000, // 1 second
-                    textRecognition: {
-                        enabled: true,
-                        // Regex for typical bag IDs, e.g., 'B-12345678'
-                        regex: "B-[0-9]{8}" 
-                    }
-                });
-                
-                picker.applyScanSettings(scanSettings);
-
-                picker.on("scan", (scanResult) => {
-                    const barcode = scanResult.barcodes[0];
-                    if (barcode) {
-                        closeCameraScanner();
-                        processScan(barcode.data.toUpperCase());
-                    }
-                });
-
-                picker.on("text-recognized", (textResult) => {
-                    const text = textResult.text;
-                    if (text && text.startsWith("B-")) {
-                         closeCameraScanner();
-                         processScan(text.toUpperCase());
-                    }
-                });
-
-                state.barcodePicker = picker;
-                
-            } catch (error) {
-                console.error("Scandit SDK Error:", error);
-                alert(`Camera Scanner Error: ${error.message}. This may be due to an invalid license key or browser incompatibility.`);
+                await state.html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess, onScanFailure);
+            } catch (err) {
+                console.error("Error starting html5-qrcode:", err);
+                scannerStatusEl.textContent = 'Camera Error. Please refresh.';
+                return;
             }
-        }
 
-        function openCameraScanner() {
-            if (!state.barcodePicker) {
-                initCameraScanner().then(() => {
-                    if (state.barcodePicker) {
-                        cameraScannerModal.classList.remove('hidden');
-                        state.barcodePicker.resumeScanning();
+            // Initialize OCR Engine in parallel
+            state.tesseractWorker = await Tesseract.createWorker('eng');
+            
+            scannerStatusEl.textContent = 'Scanning for Barcodes & Text...';
+            scannerStatusEl.classList.remove('animate-pulse');
+
+            // Start OCR loop
+            const videoElement = document.querySelector("#camera-feed-container video");
+            if (videoElement) {
+                state.intervals.ocr = setInterval(async () => {
+                    if (!cameraScannerModal.classList.contains('hidden')) {
+                         try {
+                            const { data: { text } } = await state.tesseractWorker.recognize(videoElement);
+                            // Simple regex to find potential bag IDs
+                            const matches = text.match(/B-\d{8}/g);
+                            if (matches && matches.length > 0) {
+                                closeCameraScanner();
+                                processScan(matches[0].toUpperCase());
+                            }
+                        } catch (err) {
+                            console.error("OCR Error:", err);
+                        }
                     }
-                });
-            } else {
-                 cameraScannerModal.classList.remove('hidden');
-                 state.barcodePicker.resumeScanning();
+                }, 2000); // OCR runs every 2 seconds
             }
         }
 
         function closeCameraScanner() {
-            if (state.barcodePicker) {
-                state.barcodePicker.pauseScanning();
+            if (state.html5QrCode && state.html5QrCode.isScanning) {
+                state.html5QrCode.stop().catch(err => console.error("Error stopping scanner:", err));
+            }
+            if (state.intervals.ocr) {
+                clearInterval(state.intervals.ocr);
+                state.intervals.ocr = null;
+            }
+            if(state.tesseractWorker) {
+                state.tesseractWorker.terminate();
+                state.tesseractWorker = null;
             }
             cameraScannerModal.classList.add('hidden');
         }
 
-        openCameraBtn.addEventListener('click', openCameraScanner);
+        openCameraBtn.addEventListener('click', initAndStartScanner);
         closeCameraBtn.addEventListener('click', closeCameraScanner);
 
 
